@@ -1,12 +1,25 @@
 
-body{margin:0;display:flex;font-family:Arial,sans-serif;background:#F3EEE6;color:#1E2A3A}
-.sidebar{width:260px;background:#1E2A3A;color:#fff;padding:24px;min-height:100vh;box-sizing:border-box;display:flex;flex-direction:column;gap:10px}
-main{flex:1;padding:24px}
-.card{background:#fff;padding:18px;border-radius:18px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+:root{--ink:#1E2A3A;--paper:#F3EEE6;--panel:#fff;--line:#ddd;--muted:#64748b;--accent:#2563eb;--danger:#b42318;--soft:#f8fafc}
+*{box-sizing:border-box}
+body{margin:0;display:flex;font-family:Arial,sans-serif;background:var(--paper);color:var(--ink)}
+.sidebar{width:260px;background:var(--ink);color:#fff;padding:24px;min-height:100vh;display:flex;flex-direction:column;gap:10px}
+.sidebar h1{margin:0;font-size:28px}
+.sidebar p{margin:0 0 12px;color:#cbd5e1}
+main{flex:1;padding:24px;max-width:1180px}
+h2{margin-top:0}
+h3{margin:0 0 8px;font-size:17px}
+.card{background:var(--panel);padding:18px;border-radius:8px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-button,input,select{width:100%;padding:10px;margin-top:8px;border:1px solid #ddd;border-radius:12px;box-sizing:border-box}
-button{cursor:pointer}
+button,input,select{width:100%;padding:10px;margin-top:8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+button{cursor:pointer;font-weight:700}
+button:hover{border-color:var(--accent)}
+button:disabled,select:disabled{background:var(--soft);color:var(--muted);cursor:not-allowed}
+label{display:block;margin-top:8px;color:var(--muted);font-size:14px}
 .hidden{display:none}
-.actions{display:flex;gap:8px;margin-top:10px}
+.actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .actions button{width:auto}
-@media(max-width:768px){body{display:block}.sidebar{width:auto;min-height:auto}}
+.danger{color:var(--danger);border-color:#f1b4ad}
+.meta{color:var(--muted);font-size:14px;line-height:1.5}
+.amount{font-size:20px;font-weight:700}
+.badge{display:inline-block;margin-top:8px;padding:4px 8px;border-radius:999px;background:var(--soft);color:var(--muted);font-size:12px}
+@media(max-width:768px){body{display:block}.sidebar{width:auto;min-height:auto}main{padding:16px}.actions button{width:100%}}

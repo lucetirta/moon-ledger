@@ -3,19 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Moon Ledger v10.1 Stabilization Release</title>
+<title>Moon Ledger v10.3</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <aside class="sidebar">
-<h1>🌙 Moon Ledger</h1>
-<p>v10.1 Stabilization Release</p>
-<button data-page="dashboard">🏠 Dashboard</button>
-<button data-page="accounts">🏦 Accounts</button>
-<button data-page="transactions">💰 Transactions</button>
-<button data-page="debts">💳 Debts</button>
-<button data-page="receivables">🧾 Receivables</button>
-<button data-page="settings">⚙️ Settings</button>
+<h1>Moon Ledger</h1>
+<p>v10.3 Local Ledger</p>
+<button data-page="dashboard">Dashboard</button>
+<button data-page="accounts">Accounts</button>
+<button data-page="transactions">Transactions</button>
+<button data-page="debts">Debts</button>
+<button data-page="receivables">Receivables</button>
+<button data-page="settings">Settings</button>
 </aside>
 
 <main>
@@ -27,15 +27,16 @@
 <section id="accounts" class="page hidden">
 <h2>Accounts</h2>
 <div class="card">
-<input id="accName" placeholder="Nama Account">
+<h3>New Account</h3>
+<input id="accName" placeholder="Account Name">
 <select id="accType">
 <option>Bank</option>
 <option>E-Wallet</option>
 <option>Cash</option>
 <option>Credit Card</option>
 </select>
-<input id="accBalance" type="number" placeholder="Saldo Awal">
-<button id="saveAccountBtn">Simpan Account</button>
+<input id="accBalance" type="number" placeholder="Initial Balance">
+<button id="saveAccountBtn">Save Account</button>
 </div>
 <div id="accountsList"></div>
 </section>
@@ -43,40 +44,48 @@
 <section id="transactions" class="page hidden">
 <h2>Transactions</h2>
 <div class="card">
+<label>Date</label>
+<input id="txDate" type="date">
+<label>Transaction Type</label>
 <select id="txType">
 <option value="income">Income</option>
 <option value="expense">Expense</option>
 <option value="transfer">Transfer</option>
 </select>
-<input id="txCategory" placeholder="Kategori">
-<input id="txAmount" type="number" placeholder="Nominal">
-
-<label>Dari</label>
+<label>Category</label>
+<select id="txCategory"></select>
+<input id="txAmount" type="number" placeholder="Amount">
+<label>From</label>
 <select id="txFrom"></select>
-
 <div id="transferArea" class="hidden">
-<label>Ke</label>
+<label>To</label>
 <select id="txTo"></select>
 </div>
-
-<input id="txNote" placeholder="Catatan">
-<button id="saveTxBtn">Simpan Transaksi</button>
+<input id="txNote" placeholder="Note">
+<button id="saveTxBtn">Save Transaction</button>
 </div>
-
 <div class="card">
-<input id="searchInput" placeholder="Cari transaksi">
+<input id="searchInput" placeholder="Search transactions">
 </div>
-
 <div id="transactionsList"></div>
 </section>
 
 <section id="debts" class="page hidden">
 <h2>Debts</h2>
 <div class="card">
+<h3>New Debt</h3>
+<input id="debtName" placeholder="Debt Name">
+<input id="debtTotal" type="number" placeholder="Total Debt">
+<button id="saveDebtBtn">Save Debt</button>
+</div>
+<div class="card">
+<h3>Pay Debt</h3>
+<label>Date</label>
+<input id="debtDate" type="date">
 <select id="debtAccount"></select>
 <select id="debtSelect"></select>
-<input id="debtAmount" type="number" placeholder="Nominal pembayaran">
-<button id="payDebtBtn">Bayar Hutang</button>
+<input id="debtAmount" type="number" placeholder="Payment Amount">
+<button id="payDebtBtn">Pay Debt</button>
 </div>
 <div id="debtList"></div>
 </section>
@@ -84,18 +93,43 @@
 <section id="receivables" class="page hidden">
 <h2>Receivables</h2>
 <div class="card">
+<h3>New Receivable</h3>
+<input id="recvName" placeholder="Receivable Name">
+<input id="recvTotal" type="number" placeholder="Total Receivable">
+<button id="saveRecvBtn">Save Receivable</button>
+</div>
+<div class="card">
+<h3>Receive Payment</h3>
+<label>Date</label>
+<input id="recvDate" type="date">
 <select id="recvAccount"></select>
 <select id="recvSelect"></select>
-<input id="recvAmount" type="number" placeholder="Nominal diterima">
-<button id="receiveBtn">Terima Pembayaran</button>
+<input id="recvAmount" type="number" placeholder="Amount Received">
+<button id="receiveBtn">Receive Payment</button>
 </div>
 <div id="receivableList"></div>
 </section>
 
 <section id="settings" class="page hidden">
 <h2>Settings</h2>
-<button id="seedBtn">🌱 Add Demo Finance Data</button>
-<button id="exportBtn">💾 Export Backup</button>
+<div class="card">
+<h3>Backup</h3>
+<button id="seedBtn">Add Demo Finance Data</button>
+<button id="exportBtn">Export Backup</button>
+<button id="importBtn">Import Backup</button>
+<input id="importFile" class="hidden" type="file" accept="application/json">
+</div>
+<div class="card">
+<h3>Transaction Categories</h3>
+<input id="categoryName" placeholder="Category Name">
+<select id="categoryType">
+<option value="all">All Transaction Types</option>
+<option value="income">Income Only</option>
+<option value="expense">Expense Only</option>
+</select>
+<button id="saveCategoryBtn">Save Category</button>
+</div>
+<div id="categoriesList"></div>
 </section>
 </main>
 <script src="js/app.js"></script>
