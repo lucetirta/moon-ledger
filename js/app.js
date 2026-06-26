@@ -22,60 +22,79 @@ document.querySelectorAll('.sidebar button[data-page]').forEach(btn=>{
   };
 });
 
-function render(){
-  const cash = DB.accounts.reduce((a,b)=>a+b.balance,0);
-  const debt = DB.debts.reduce((a,b)=>a+b.remaining,0);
-  const recv = DB.receivables.reduce((a,b)=>a+b.remaining,0);
+txType.onchange = ()=>{
+  transferArea.classList.toggle('hidden', txType.value !== 'transfer');
+};
 
-  cards.innerHTML = `
-  <div class="card"><h3>🌙 Net Worth</h3><p>${rp(cash + recv - debt)}</p></div>
-  <div class="card"><h3>🏦 Cash & Bank</h3><p>${rp(cash)}</p></div>
-  <div class="card"><h3>💳 Debt</h3><p>${rp(debt)}</p></div>
-  <div class="card"><h3>🧾 Receivables</h3><p>${rp(recv)}</p></div>`;
+saveAccountBtn.onclick = ()=>{
+  if(!accName.value) return alert('Isi nama account.');
 
-  const options =
-  '<option value="">Pilih Account</option>' +
-  DB.accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  DB.accounts.push({
+    id: Date.now(),
+    name: accName.value,
+    type: accType.value,
+    balance: Number(accBalance.value || 0)
+  });
 
-  debtAccount.innerHTML = options;
-  recvAccount.innerHTML = options;
+  accName.value = '';
+  accBalance.value = '';
+  save();
+};
 
-  debtSelect.innerHTML =
-  '<option value="">Pilih Hutang</option>' +
-  DB.debts.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+saveTxBtn.onclick = ()=>{
+  const type = txType.value;
+  const amount = Number(txAmount.value || 0);
 
-  recvSelect.innerHTML =
-  '<option value="">Pilih Piutang</option>' +
-  DB.receivables.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  if(!amount) return alert('Isi nominal.');
 
-  debtList.innerHTML = DB.debts.map(d =>
-    `<div class="card">💳 ${d.name}<br>Sisa: ${rp(d.remaining)}</div>`
-  ).join('');
+  if(type === 'transfer'){
+    const from = DB.accounts.find(a=>a.id == txFrom.value);
+    const to = DB.accounts.find(a=>a.id == txTo.value);
 
-  receivableList.innerHTML = DB.receivables.map(r =>
-    `<div class="card">🧾 ${r.name}<br>Sisa: ${rp(r.remaining)}</div>`
-  ).join('');
+    if(!from || !to) return alert('Pilih account.');
+    if(from.id === to.id) return alert('Account harus berbeda.');
+    if(from.balance < amount) return alert('Saldo tidak cukup.');
 
-  const keyword = (searchInput?.value || '').toLowerCase();
+    from.balance -= amount;
+    to.balance += amount;
 
-  transactionsList.innerHTML = DB.transactions
-    .filter(t =>
-      !keyword ||
-      (t.category || '').toLowerCase().includes(keyword) ||
-      (t.note || '').toLowerCase().includes(keyword)
-    )
-    .slice().reverse()
-    .map(t =>
-      `<div class="card">
-      ${t.date}<br>
-      ${t.type}<br>
-      ${t.category || '-'}<br>
-      ${rp(t.amount)}
-      </div>`
-    ).join('');
-}
+    DB.transactions.push({
+      id: Date.now(),
+      date: new Date().toISOString().slice(0,10),
+      type:'transfer',
+      category:'Transfer',
+      amount,
+      fromId: from.id,
+      toId: to.id,
+      note: txNote.value
+    });
+  } else {
+    const account = DB.accounts.find(a=>a.id == txFrom.value);
+    if(!account) return alert('Pilih account.');
 
-searchInput?.addEventListener('input', render);
+    if(type === 'income'){
+      account.balance += amount;
+    } else {
+      if(account.balance < amount) return alert('Saldo tidak cukup.');
+      account.balance -= amount;
+    }
+
+    DB.transactions.push({
+      id: Date.now(),
+      date: new Date().toISOString().slice(0,10),
+      type,
+      category: txCategory.value || 'General',
+      amount,
+      accountId: account.id,
+      note: txNote.value
+    });
+  }
+
+  txAmount.value='';
+  txCategory.value='';
+  txNote.value='';
+  save();
+};
 
 payDebtBtn.onclick = ()=>{
   const account = DB.accounts.find(a=>a.id == debtAccount.value);
@@ -96,7 +115,7 @@ payDebtBtn.onclick = ()=>{
     amount
   });
 
-  debtAmount.value = '';
+  debtAmount.value='';
   save();
 };
 
@@ -118,7 +137,7 @@ receiveBtn.onclick = ()=>{
     amount
   });
 
-  recvAmount.value = '';
+  recvAmount.value='';
   save();
 };
 
@@ -126,18 +145,11 @@ seedBtn.onclick = ()=>{
   if(DB.accounts.length) return alert('Data sudah ada.');
 
   DB.accounts.push(
-    {id:1,name:'BCA',balance:5000000},
-    {id:2,name:'Jenius',balance:1000000}
+    {id:1,name:'BCA',type:'Bank',balance:5000000},
+    {id:2,name:'Jenius',type:'Bank',balance:1000000}
   );
-
-  DB.debts.push(
-    {id:1,name:'Cicilan Tablet',remaining:2500000}
-  );
-
-  DB.receivables.push(
-    {id:1,name:'Princess',remaining:500000}
-  );
-
+  DB.debts.push({id:1,name:'Cicilan Tablet',remaining:2500000});
+  DB.receivables.push({id:1,name:'Princess',remaining:500000});
   save();
 };
 
@@ -149,4 +161,59 @@ exportBtn.onclick = ()=>{
   a.click();
 };
 
+function render(){
+  const cash = DB.accounts.reduce((a,b)=>a+b.balance,0);
+  const debt = DB.debts.reduce((a,b)=>a+b.remaining,0);
+  const recv = DB.receivables.reduce((a,b)=>a+b.remaining,0);
+
+  cards.innerHTML = `
+    <div class="card"><h3>🌙 Net Worth</h3><p>${rp(cash + recv - debt)}</p></div>
+    <div class="card"><h3>🏦 Cash & Bank</h3><p>${rp(cash)}</p></div>
+    <div class="card"><h3>💳 Debt</h3><p>${rp(debt)}</p></div>
+    <div class="card"><h3>🧾 Receivables</h3><p>${rp(recv)}</p></div>`;
+
+  const options =
+    '<option value="">Pilih Account</option>' +
+    DB.accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+
+  txFrom.innerHTML = options;
+  txTo.innerHTML = options;
+  debtAccount.innerHTML = options;
+  recvAccount.innerHTML = options;
+
+  debtSelect.innerHTML =
+    '<option value="">Pilih Hutang</option>' +
+    DB.debts.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+
+  recvSelect.innerHTML =
+    '<option value="">Pilih Piutang</option>' +
+    DB.receivables.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+
+  accountsList.innerHTML = DB.accounts.map(a=>`
+    <div class="card">
+      🏦 ${a.name}<br>${a.type}<br>${rp(a.balance)}
+    </div>`).join('');
+
+  debtList.innerHTML = DB.debts.map(d=>`
+    <div class="card">💳 ${d.name}<br>Sisa: ${rp(d.remaining)}</div>`).join('');
+
+  receivableList.innerHTML = DB.receivables.map(r=>`
+    <div class="card">🧾 ${r.name}<br>Sisa: ${rp(r.remaining)}</div>`).join('');
+
+  const keyword = (searchInput?.value || '').toLowerCase();
+
+  transactionsList.innerHTML = DB.transactions
+    .filter(t => !keyword ||
+      (t.category||'').toLowerCase().includes(keyword) ||
+      (t.note||'').toLowerCase().includes(keyword))
+    .slice().reverse()
+    .map(t=>`<div class="card">
+      ${t.date}<br>
+      ${t.type}<br>
+      ${t.category || '-'}<br>
+      ${rp(t.amount)}
+    </div>`).join('');
+}
+
+searchInput?.addEventListener('input', render);
 render();

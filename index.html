@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Moon Ledger v10</title>
+<title>Moon Ledger v10.1 Stabilization Release</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <aside class="sidebar">
 <h1>🌙 Moon Ledger</h1>
-<p>Prototype v1.0 Candidate</p>
-
+<p>v10.1 Stabilization Release</p>
 <button data-page="dashboard">🏠 Dashboard</button>
+<button data-page="accounts">🏦 Accounts</button>
 <button data-page="transactions">💰 Transactions</button>
 <button data-page="debts">💳 Debts</button>
 <button data-page="receivables">🧾 Receivables</button>
@@ -24,40 +24,71 @@
 <div id="cards" class="grid"></div>
 </section>
 
+<section id="accounts" class="page hidden">
+<h2>Accounts</h2>
+<div class="card">
+<input id="accName" placeholder="Nama Account">
+<select id="accType">
+<option>Bank</option>
+<option>E-Wallet</option>
+<option>Cash</option>
+<option>Credit Card</option>
+</select>
+<input id="accBalance" type="number" placeholder="Saldo Awal">
+<button id="saveAccountBtn">Simpan Account</button>
+</div>
+<div id="accountsList"></div>
+</section>
+
 <section id="transactions" class="page hidden">
 <h2>Transactions</h2>
+<div class="card">
+<select id="txType">
+<option value="income">Income</option>
+<option value="expense">Expense</option>
+<option value="transfer">Transfer</option>
+</select>
+<input id="txCategory" placeholder="Kategori">
+<input id="txAmount" type="number" placeholder="Nominal">
+
+<label>Dari</label>
+<select id="txFrom"></select>
+
+<div id="transferArea" class="hidden">
+<label>Ke</label>
+<select id="txTo"></select>
+</div>
+
+<input id="txNote" placeholder="Catatan">
+<button id="saveTxBtn">Simpan Transaksi</button>
+</div>
 
 <div class="card">
-<h3>Filters</h3>
-<input id="searchInput" placeholder="Cari kategori atau catatan">
+<input id="searchInput" placeholder="Cari transaksi">
 </div>
 
 <div id="transactionsList"></div>
 </section>
 
 <section id="debts" class="page hidden">
-<h2>Debt Payment</h2>
-
+<h2>Debts</h2>
 <div class="card">
 <select id="debtAccount"></select>
 <select id="debtSelect"></select>
 <input id="debtAmount" type="number" placeholder="Nominal pembayaran">
 <button id="payDebtBtn">Bayar Hutang</button>
 </div>
-
 <div id="debtList"></div>
 </section>
 
 <section id="receivables" class="page hidden">
-<h2>Receive Payment</h2>
-
+<h2>Receivables</h2>
 <div class="card">
 <select id="recvAccount"></select>
 <select id="recvSelect"></select>
 <input id="recvAmount" type="number" placeholder="Nominal diterima">
 <button id="receiveBtn">Terima Pembayaran</button>
 </div>
-
 <div id="receivableList"></div>
 </section>
 
@@ -67,7 +98,6 @@
 <button id="exportBtn">💾 Export Backup</button>
 </section>
 </main>
-
 <script src="js/app.js"></script>
 </body>
 </html>
