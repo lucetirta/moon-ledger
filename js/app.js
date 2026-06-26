@@ -1,148 +1,164 @@
 
 const DB = {
- accounts: JSON.parse(localStorage.getItem('accounts')) || [],
- transactions: JSON.parse(localStorage.getItem('transactions')) || []
+  accounts: JSON.parse(localStorage.getItem('accounts')) || [],
+  transactions: JSON.parse(localStorage.getItem('transactions')) || []
 };
 
 function save(){
- Object.entries(DB).forEach(([k,v]) =>
-   localStorage.setItem(k, JSON.stringify(v))
- );
- render();
+  Object.entries(DB).forEach(([k,v])=>localStorage.setItem(k, JSON.stringify(v)));
+  render();
 }
 
 function rp(n){
- return 'Rp ' + new Intl.NumberFormat('id-ID').format(n||0);
+  return 'Rp ' + new Intl.NumberFormat('id-ID').format(n||0);
+}
+
+document.querySelectorAll('.sidebar button[data-page]').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
+    document.getElementById(btn.dataset.page).classList.remove('hidden');
+  };
+});
+
+txType.onchange = ()=>{
+  transferArea.classList.toggle('hidden', txType.value !== 'transfer');
+};
+
+saveAccountBtn.onclick = ()=>{
+  if(!accName.value) return alert('Isi nama account.');
+
+  DB.accounts.push({
+    id: Date.now(),
+    name: accName.value,
+    type: accType.value,
+    balance: Number(accBalance.value || 0)
+  });
+
+  accName.value = '';
+  accBalance.value = '';
+
+  save();
+};
+
+saveTxBtn.onclick = ()=>{
+  const type = txType.value;
+  const amount = Number(txAmount.value || 0);
+  if(!amount) return alert('Isi nominal.');
+
+  if(type === 'transfer'){
+    const from = DB.accounts.find(a=>a.id == txFrom.value);
+    const to = DB.accounts.find(a=>a.id == txTo.value);
+
+    if(!from || !to) return alert('Pilih account.');
+    if(from.id === to.id) return alert('Account harus berbeda.');
+    if(from.balance < amount) return alert('Saldo tidak cukup.');
+
+    from.balance -= amount;
+    to.balance += amount;
+
+    DB.transactions.push({
+      id: Date.now(),
+      date: new Date().toISOString().slice(0,10),
+      type,
+      amount,
+      fromId: from.id,
+      toId: to.id,
+      category: 'Transfer',
+      note: txNote.value
+    });
+  }else{
+    const account = DB.accounts.find(a=>a.id == txFrom.value);
+    if(!account) return alert('Pilih account.');
+
+    if(type === 'income'){
+      account.balance += amount;
+    }else{
+      if(account.balance < amount) return alert('Saldo tidak cukup.');
+      account.balance -= amount;
+    }
+
+    DB.transactions.push({
+      id: Date.now(),
+      date: new Date().toISOString().slice(0,10),
+      type,
+      amount,
+      category: txCategory.value || 'General',
+      accountId: account.id,
+      note: txNote.value
+    });
+  }
+
+  txAmount.value = '';
+  txCategory.value = '';
+  txNote.value = '';
+
+  save();
+};
+
+function deleteAccount(id){
+  if(!confirm('Hapus account?')) return;
+  DB.accounts = DB.accounts.filter(a=>a.id !== id);
+  save();
+}
+
+function editAccount(id){
+  const a = DB.accounts.find(x=>x.id === id);
+  if(!a) return;
+
+  const name = prompt('Nama account', a.name);
+  const type = prompt('Type', a.type);
+
+  if(name) a.name = name;
+  if(type) a.type = type;
+
+  save();
 }
 
 function render(){
- txAccount.innerHTML =
- '<option value="">Pilih Account</option>' +
- DB.accounts.map(a =>
- `<option value="${a.id}">${a.name}</option>`
- ).join('');
+  const total = DB.accounts.reduce((a,b)=>a+b.balance,0);
 
- accountsList.innerHTML =
- DB.accounts.map(a =>
- `<div class="item">🏦 ${a.name} — ${rp(a.balance)}</div>`
- ).join('');
+  cards.innerHTML = `
+    <div class="card"><h3>Total Cash</h3><p>${rp(total)}</p></div>
+    <div class="card"><h3>Accounts</h3><p>${DB.accounts.length}</p></div>
+    <div class="card"><h3>Transactions</h3><p>${DB.transactions.length}</p></div>
+  `;
 
- transactionsList.innerHTML =
- DB.transactions.slice().reverse().map(t =>
- `<div class="item">
- ${t.date} • ${t.type} • ${t.category}<br>
- ${rp(t.amount)}
- <br>
- <button onclick="editTransaction(${t.id})">Edit</button>
- <button onclick="deleteTransaction(${t.id})">Delete</button>
- </div>`
- ).join('');
+  const options =
+    '<option value="">Pilih Account</option>' +
+    DB.accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+
+  txFrom.innerHTML = options;
+  txTo.innerHTML = options;
+
+  accountsList.innerHTML = DB.accounts.map(a=>`
+    <div class="card">
+      🏦 ${a.name}<br>
+      ${a.type}<br>
+      ${rp(a.balance)}
+      <div class="actions">
+        <button onclick="editAccount(${a.id})">Edit</button>
+        <button onclick="deleteAccount(${a.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+
+  transactionsList.innerHTML = DB.transactions.slice().reverse().map(t=>{
+    let desc = `${t.type} • ${rp(t.amount)}`;
+    if(t.type === 'transfer'){
+      const from = DB.accounts.find(a=>a.id===t.fromId);
+      const to = DB.accounts.find(a=>a.id===t.toId);
+      desc += `<br>${from?.name || '-'} → ${to?.name || '-'}`;
+    }
+    return `<div class="card">${t.date}<br>${desc}</div>`;
+  }).join('');
 }
 
-saveTxBtn.onclick = ()=>{
- const accountId = Number(txAccount.value);
- const amount = Number(txAmount.value || 0);
-
- if(!accountId || !amount){
-   alert('Lengkapi data.');
-   return;
- }
-
- const account = DB.accounts.find(a => a.id === accountId);
-
- if(txType.value === 'income'){
-   account.balance += amount;
- }else{
-   if(account.balance < amount){
-     alert('Saldo tidak cukup.');
-     return;
-   }
-   account.balance -= amount;
- }
-
- DB.transactions.push({
-   id: Date.now(),
-   date: new Date().toISOString().slice(0,10),
-   type: txType.value,
-   category: txCategory.value || 'General',
-   amount,
-   accountId
- });
-
- txCategory.value = '';
- txAmount.value = '';
-
- save();
-};
-
-function rollbackTransaction(t){
- const account = DB.accounts.find(a => a.id === t.accountId);
- if(!account) return;
-
- if(t.type === 'income'){
-   account.balance -= t.amount;
- }else if(t.type === 'expense'){
-   account.balance += t.amount;
- }
-}
-
-function applyTransaction(t){
- const account = DB.accounts.find(a => a.id === t.accountId);
- if(!account) return;
-
- if(t.type === 'income'){
-   account.balance += t.amount;
- }else if(t.type === 'expense'){
-   account.balance -= t.amount;
- }
-}
-
-function deleteTransaction(id){
- const t = DB.transactions.find(x => x.id === id);
- if(!t) return;
-
- if(!confirm('Hapus transaksi?')) return;
-
- rollbackTransaction(t);
- DB.transactions = DB.transactions.filter(x => x.id !== id);
-
- save();
-}
-
-function editTransaction(id){
- const t = DB.transactions.find(x => x.id === id);
- if(!t) return;
-
- rollbackTransaction(t);
-
- const category = prompt('Kategori', t.category);
- const amount = Number(prompt('Nominal', t.amount) || t.amount);
-
- t.category = category || t.category;
- t.amount = amount;
-
- applyTransaction(t);
-
- save();
-}
-
-seedBtn.onclick = ()=>{
- if(DB.accounts.length) return;
-
- DB.accounts.push(
-   {
-     id: 1,
-     name: 'BCA',
-     balance: 5000000
-   },
-   {
-     id: 2,
-     name: 'Jenius',
-     balance: 1000000
-   }
- );
-
- save();
+exportBtn.onclick = ()=>{
+  const blob = new Blob([JSON.stringify(DB,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'moon-ledger-backup.json';
+  a.click();
 };
 
 render();

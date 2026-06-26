@@ -3,38 +3,78 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Moon Ledger v8</title>
+<title>Moon Ledger v9</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<h1>🌙 Moon Ledger v8</h1>
-<p>Prototype v0.8 - Data Integrity Build</p>
+<aside class="sidebar">
+  <h1>🌙 Moon Ledger</h1>
+  <p>Prototype v0.9</p>
+  <button data-page="dashboard">🏠 Dashboard</button>
+  <button data-page="accounts">🏦 Accounts</button>
+  <button data-page="transactions">💰 Transactions</button>
+  <button data-page="settings">⚙️ Settings</button>
+</aside>
 
-<div class="card">
-<h2>Add Transaction</h2>
-<select id="txType">
-<option value="income">Income</option>
-<option value="expense">Expense</option>
-</select>
-<input id="txCategory" placeholder="Kategori">
-<input id="txAmount" type="number" placeholder="Nominal">
-<select id="txAccount"></select>
-<button id="saveTxBtn">Simpan</button>
-</div>
+<main>
+<section id="dashboard" class="page">
+  <h2>Dashboard</h2>
+  <div id="cards" class="grid"></div>
+</section>
 
-<div class="card">
-<button id="seedBtn">🌱 Add Demo Data</button>
-</div>
+<section id="accounts" class="page hidden">
+  <h2>Accounts</h2>
 
-<div class="card">
-<h2>Accounts</h2>
-<div id="accountsList"></div>
-</div>
+  <div class="card">
+    <h3>Add Account</h3>
+    <input id="accName" placeholder="Nama Account">
+    <select id="accType">
+      <option>Bank</option>
+      <option>E-Wallet</option>
+      <option>Cash</option>
+      <option>Credit Card</option>
+    </select>
+    <input id="accBalance" type="number" placeholder="Saldo Awal">
+    <button id="saveAccountBtn">Simpan Account</button>
+  </div>
 
-<div class="card">
-<h2>Transactions</h2>
-<div id="transactionsList"></div>
-</div>
+  <div id="accountsList"></div>
+</section>
+
+<section id="transactions" class="page hidden">
+  <h2>Transactions</h2>
+
+  <div class="card">
+    <h3>Add Transaction</h3>
+    <select id="txType">
+      <option value="income">Income</option>
+      <option value="expense">Expense</option>
+      <option value="transfer">Transfer</option>
+    </select>
+
+    <input id="txCategory" placeholder="Kategori">
+    <input id="txAmount" type="number" placeholder="Nominal">
+
+    <label>Dari</label>
+    <select id="txFrom"></select>
+
+    <div id="transferArea" class="hidden">
+      <label>Ke</label>
+      <select id="txTo"></select>
+    </div>
+
+    <textarea id="txNote" placeholder="Catatan"></textarea>
+    <button id="saveTxBtn">Simpan</button>
+  </div>
+
+  <div id="transactionsList"></div>
+</section>
+
+<section id="settings" class="page hidden">
+  <h2>Settings</h2>
+  <button id="exportBtn">💾 Export Backup</button>
+</section>
+</main>
 
 <script src="js/app.js"></script>
 </body>
