@@ -1,20 +1,21 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Moon Ledger v10.3</title>
+<title>Moon Ledger v10.4</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <aside class="sidebar">
 <h1>Moon Ledger</h1>
-<p>v10.3 Local Ledger</p>
+<p>v11.0</p>
 <button data-page="dashboard">Dashboard</button>
 <button data-page="accounts">Accounts</button>
 <button data-page="transactions">Transactions</button>
 <button data-page="debts">Debts</button>
 <button data-page="receivables">Receivables</button>
+<button data-page="subscriptions">Subscriptions</button>
 <button data-page="settings">Settings</button>
 </aside>
 
@@ -25,25 +26,77 @@
 </section>
 
 <section id="accounts" class="page hidden">
+<div class="section-header">
+<div>
 <h2>Accounts</h2>
-<div class="card">
-<h3>New Account</h3>
+<p class="section-note">Track cash, bank, wallet, and credit card balances.</p>
+</div>
+<button id="openAccountModalBtn" class="primary">Add Account</button>
+</div>
+<div id="accountsList" class="grid"></div>
+</section>
+
+<div class="modal hidden" id="accountModal">
+<div class="modal-backdrop" data-close="accountModal"></div>
+<div class="modal-card card">
+<header class="modal-header">
+<div>
+<h3 id="accountModalTitle">New Account</h3>
+<p class="meta">Create a new funding or credit account.</p>
+</div>
+<button class="modal-close" data-close="accountModal">×</button>
+</header>
+<div class="modal-body">
+<label>Account Name</label>
 <input id="accName" placeholder="Account Name">
+<label>Account Type</label>
 <select id="accType">
 <option>Bank</option>
 <option>E-Wallet</option>
 <option>Cash</option>
 <option>Credit Card</option>
 </select>
+<div id="cashAccountArea">
+<label>Initial Balance</label>
 <input id="accBalance" type="number" placeholder="Initial Balance">
-<button id="saveAccountBtn">Save Account</button>
 </div>
-<div id="accountsList"></div>
-</section>
+<div id="creditAccountArea" class="hidden">
+<label>Credit Limit</label>
+<input id="accLimit" type="number" placeholder="Credit Limit">
+<label>Used Limit</label>
+<input id="accUsedLimit" type="number" placeholder="Used Limit (optional)">
+</div>
+<div class="actions"><button id="saveAccountBtn">Save Account</button><button id="cancelAccountBtn" class="secondary hidden">Cancel</button></div>
+</div>
+</div>
+</div>
 
 <section id="transactions" class="page hidden">
+<div class="section-header">
+<div>
 <h2>Transactions</h2>
-<div class="card">
+<p class="section-note">Record income, expense, and transfer activity.</p>
+</div>
+<button id="openTxModalBtn" class="primary">Add Transaction</button>
+</div>
+<div class="card compact-card">
+<label>Search transactions</label>
+<input id="searchInput" placeholder="Search transactions">
+</div>
+<div id="transactionsList" class="grid"></div>
+</section>
+
+<div class="modal hidden" id="transactionModal">
+<div class="modal-backdrop" data-close="transactionModal"></div>
+<div class="modal-card card">
+<header class="modal-header">
+<div>
+<h3>New Transaction</h3>
+<p class="meta">Log a new income, expense, or transfer.</p>
+</div>
+<button class="modal-close" data-close="transactionModal">×</button>
+</header>
+<div class="modal-body">
 <label>Date</label>
 <input id="txDate" type="date">
 <label>Transaction Type</label>
@@ -54,6 +107,7 @@
 </select>
 <label>Category</label>
 <select id="txCategory"></select>
+<label>Amount</label>
 <input id="txAmount" type="number" placeholder="Amount">
 <label>From</label>
 <select id="txFrom"></select>
@@ -61,54 +115,257 @@
 <label>To</label>
 <select id="txTo"></select>
 </div>
+<label>Note</label>
 <input id="txNote" placeholder="Note">
-<button id="saveTxBtn">Save Transaction</button>
+<div class="actions"><button id="saveTxBtn">Save Transaction</button><button id="cancelTxBtn" class="secondary hidden">Cancel</button></div>
 </div>
-<div class="card">
-<input id="searchInput" placeholder="Search transactions">
 </div>
-<div id="transactionsList"></div>
-</section>
+</div>
 
 <section id="debts" class="page hidden">
+<div class="section-header">
+<div>
 <h2>Debts</h2>
-<div class="card">
-<h3>New Debt</h3>
-<input id="debtName" placeholder="Debt Name">
-<input id="debtTotal" type="number" placeholder="Total Debt">
-<button id="saveDebtBtn">Save Debt</button>
+<p class="section-note">Monitor outstanding debt and credit payments.</p>
 </div>
-<div class="card">
-<h3>Pay Debt</h3>
-<label>Date</label>
-<input id="debtDate" type="date">
-<select id="debtAccount"></select>
-<select id="debtSelect"></select>
-<input id="debtAmount" type="number" placeholder="Payment Amount">
-<button id="payDebtBtn">Pay Debt</button>
+<div class="section-actions">
+<button id="openDebtModalBtn" class="primary">Add Debt</button>
+<button id="openDebtPaymentModalBtn" class="secondary">Pay Debt</button>
 </div>
-<div id="debtList"></div>
+</div>
+<div class="card compact-card">
+<p class="meta">Use the button to open the debt payment dialog and keep the page focused on your debt overview.</p>
+</div>
+<div id="debtList" class="grid"></div>
 </section>
 
-<section id="receivables" class="page hidden">
-<h2>Receivables</h2>
-<div class="card">
-<h3>New Receivable</h3>
-<input id="recvName" placeholder="Receivable Name">
-<input id="recvTotal" type="number" placeholder="Total Receivable">
-<button id="saveRecvBtn">Save Receivable</button>
+<div class="modal hidden" id="debtModal">
+<div class="modal-backdrop" data-close="debtModal"></div>
+<div class="modal-card card">
+<header class="modal-header">
+<div>
+<h3>New Debt</h3>
+<p class="meta">Add a new liability or credit installment.</p>
 </div>
-<div class="card">
+<button class="modal-close" data-close="debtModal">×</button>
+</header>
+<div class="modal-body">
+<label>Debt Type</label>
+<select id="debtType">
+<option value="regular">Regular Debt</option>
+<option value="credit_card">Credit Card Installment</option>
+</select>
+<div id="debtCreditArea" class="hidden">
+<label>Credit Card</label>
+<select id="debtCreditCard"></select>
+<label>Borrower</label>
+<input id="debtBorrower" placeholder="Borrower name (optional)">
+</div>
+<label>Category</label>
+<select id="debtCategory"></select>
+<label>Debt Name</label>
+<input id="debtName" placeholder="Debt Name">
+<label>Total Debt</label>
+<input id="debtTotal" type="number" placeholder="Total Debt">
+<label>Tenor</label>
+<input id="debtTenor" type="number" placeholder="Tenor / installments (optional)">
+<label>Due Day</label>
+<input id="debtDueDay" type="number" placeholder="Monthly due day (optional)">
+<div class="actions"><button id="saveDebtBtn">Save Debt</button><button id="cancelDebtBtn" class="secondary hidden">Cancel</button></div>
+</div>
+</div>
+</div>
+
+<section id="receivables" class="page hidden">
+<div class="section-header">
+<div>
+<h2>Receivables</h2>
+<p class="section-note">Keep track of money owed and shared subscription income.</p>
+</div>
+<div class="section-actions">
+<button id="openRecvModalBtn" class="primary">Add Receivable</button>
+<button id="openRecvPaymentModalBtn" class="secondary">Receive Payment</button>
+</div>
+</div>
+<div class="card compact-card">
+<p class="meta">Open the payment dialog to record receivable collections and keep the page uncluttered.</p>
+</div>
+<div id="receivableList" class="grid"></div>
+</section>
+
+<div class="modal hidden" id="receivableModal">
+<div class="modal-backdrop" data-close="receivableModal"></div>
+<div class="modal-card card">
+<header class="modal-header">
+<div>
+<h3>New Receivable</h3>
+<p class="meta">Create a new receivable or shared subscription receivable.</p>
+</div>
+<button class="modal-close" data-close="receivableModal">×</button>
+</header>
+<div class="modal-body">
+<label>Receivable Type</label>
+<select id="recvType">
+<option value="regular">Regular Receivable</option>
+<option value="subscription_sharing">Sharing Subscription</option>
+</select>
+<div id="recvSubscriptionArea" class="hidden">
+<label>Subscription</label>
+<select id="recvSubscription"></select>
+</div>
+<label>Receivable Name</label>
+<input id="recvName" placeholder="Receivable Name">
+<label>Total Receivable</label>
+<input id="recvTotal" type="number" placeholder="Total Receivable">
+<div class="actions"><button id="saveRecvBtn">Save Receivable</button><button id="cancelRecvBtn" class="secondary hidden">Cancel</button></div>
+</div>
+</div>
+</div>
+
+<div class="modal hidden" id="debtPaymentModal">
+<div class="modal-backdrop" data-close="debtPaymentModal"></div>
+<div class="modal-card card">
+<header class="modal-header">
+<div>
+<h3>Pay Debt</h3>
+<p class="meta">Record a debt payment from your cash or bank account.</p>
+</div>
+<button class="modal-close" data-close="debtPaymentModal">×</button>
+</header>
+<div class="modal-body">
+<label>Debt</label>
+<select id="debtSelect"></select>
+<label>Payment Account</label>
+<select id="debtAccount"></select>
+<label>Amount</label>
+<input id="debtAmount" type="number" placeholder="Amount">
+<label>Date</label>
+<input id="debtDate" type="date">
+<label>Note</label>
+<input id="debtNote" placeholder="Note">
+<div class="actions"><button id="payDebtBtn">Save Payment</button><button id="cancelDebtPaymentBtn" class="secondary">Cancel</button></div>
+</div>
+</div>
+</div>
+
+<div class="modal hidden" id="receivablePaymentModal">
+<div class="modal-backdrop" data-close="receivablePaymentModal"></div>
+<div class="modal-card card">
+<header class="modal-header">
+<div>
 <h3>Receive Payment</h3>
+<p class="meta">Log a received payment against a receivable.</p>
+</div>
+<button class="modal-close" data-close="receivablePaymentModal">×</button>
+</header>
+<div class="modal-body">
+<label>Receivable</label>
+<select id="recvSelect"></select>
+<div id="recvMemberArea" class="hidden">
+<label>Member</label>
+<select id="recvMember"></select>
+</div>
+<label>Payment Account</label>
+<select id="recvAccount"></select>
+<label>Amount</label>
+<input id="recvAmount" type="number" placeholder="Amount">
 <label>Date</label>
 <input id="recvDate" type="date">
-<select id="recvAccount"></select>
-<select id="recvSelect"></select>
-<input id="recvAmount" type="number" placeholder="Amount Received">
-<button id="receiveBtn">Receive Payment</button>
+<label>Note</label>
+<input id="recvNote" placeholder="Note">
+<div class="actions"><button id="receiveBtn">Save Payment</button><button id="cancelRecvPaymentBtn" class="secondary">Cancel</button></div>
 </div>
-<div id="receivableList"></div>
+</div>
+</div>
+
+<div class="modal hidden" id="subMemberModal">
+<div class="modal-backdrop" data-close="subMemberModal"></div>
+<div class="modal-card card">
+<header class="modal-header">
+<div>
+<h3>Add Subscription Member</h3>
+<p class="meta">Create a new member share for a subscription.</p>
+</div>
+<button class="modal-close" data-close="subMemberModal">×</button>
+</header>
+<div class="modal-body">
+<label>Subscription</label>
+<select id="subMemberSubscription"></select>
+<label>Member Name</label>
+<input id="subMemberName" placeholder="Member Name">
+<label>Share Amount</label>
+<input id="subMemberShare" type="number" placeholder="Share Amount">
+<label>Note</label>
+<input id="subMemberNote" placeholder="Note (optional)">
+<div class="actions"><button id="addSubMemberBtn">Add Member</button><button id="cancelSubMemberBtn" class="secondary">Cancel</button></div>
+</div>
+</div>
+</div>
+
+<section id="subscriptions" class="page hidden">
+<div class="section-header">
+<div>
+<h2>Subscriptions</h2>
+<p class="section-note">Manage recurring services and member shares.</p>
+</div>
+<div class="section-actions">
+<button id="openSubModalBtn" class="primary">Add Subscription</button>
+<button id="openSubMemberModalBtn" class="secondary">Add Member</button>
+</div>
+</div>
+<div class="card compact-card">
+<p class="meta">Use the member dialog to add new subscription members and keep the page focused on your subscription list.</p>
+</div>
+<div id="subscriptionsList" class="grid"></div>
 </section>
+
+<div class="modal hidden" id="subscriptionModal">
+<div class="modal-backdrop" data-close="subscriptionModal"></div>
+<div class="modal-card card">
+<header class="modal-header">
+<div>
+<h3>New Subscription</h3>
+<p class="meta">Create a new recurring subscription.</p>
+</div>
+<button class="modal-close" data-close="subscriptionModal">×</button>
+</header>
+<div class="modal-body">
+<label>Subscription Name</label>
+<input id="subName" placeholder="Subscription Name">
+<label>Category</label>
+<select id="subCategory"></select>
+<label>Subscription Category</label>
+<select id="subSubscriptionCategory">
+<option value="personal">Personal</option>
+<option value="sharing">Sharing</option>
+</select>
+<div id="subMaxMembersArea" class="hidden">
+<label>Maximum Number of Members</label>
+<input id="subMaxMembers" type="number" min="1" placeholder="Maximum members">
+</div>
+<label>Billing Cycle</label>
+<select id="subCycle">
+<option value="monthly">Monthly</option>
+<option value="yearly">Yearly</option>
+</select>
+<label>Renewal Date</label>
+<input id="subRenewalDate" type="date">
+<label>Total Cost</label>
+<input id="subTotal" type="number" placeholder="Total Cost">
+<label>Payment Account</label>
+<select id="subAccount"></select>
+<label>Note</label>
+<input id="subNote" placeholder="Note (optional)">
+<label>Status</label>
+<select id="subStatus">
+<option value="active">Active</option>
+<option value="paused">Paused</option>
+<option value="canceled">Canceled</option>
+</select>
+<div class="actions"><button id="saveSubBtn">Save Subscription</button><button id="cancelSubBtn" class="secondary hidden">Cancel</button></div>
+</div>
+</div>
+</div>
 
 <section id="settings" class="page hidden">
 <h2>Settings</h2>
@@ -117,6 +374,7 @@
 <button id="seedBtn">Add Demo Finance Data</button>
 <button id="exportBtn">Export Backup</button>
 <button id="importBtn">Import Backup</button>
+<button id="deleteAllBtn" class="danger">Delete All Data</button>
 <input id="importFile" class="hidden" type="file" accept="application/json">
 </div>
 <div class="card">
