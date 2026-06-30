@@ -292,9 +292,40 @@ function resetTransactionForm(){
   txNote.value = '';
   txFrom.value = '';
   txTo.value = '';
+  document.getElementById('txDebtSelect').value = '';
+  document.getElementById('txReceivableSelect').value = '';
+  document.getElementById('txReceivableMember').value = '';
   saveTxBtn.textContent = 'Save Transaction';
   cancelTxBtn.classList.add('hidden');
+  populateTransactionDebtSelect();
+  populateTransactionReceivableSelect();
   syncTransactionForm();
+}
+
+function populateTransactionDebtSelect(){
+  const select = document.getElementById('txDebtSelect');
+  select.innerHTML = '<option value="">Pilih Hutang</option>' + DB.debts.map(d=>'<option value="' + d.id + '">' + esc(d.name) + ' (Rp ' + d.remaining.toLocaleString() + ')</option>').join('');
+}
+
+function populateTransactionReceivableSelect(){
+  const select = document.getElementById('txReceivableSelect');
+  select.innerHTML = '<option value="">Pilih Piutang</option>' + DB.receivables.map(r=>'<option value="' + r.id + '">' + esc(r.name) + ' (Rp ' + r.remaining.toLocaleString() + ')</option>').join('');
+}
+
+function syncTransactionReceivableMembers(){
+  const recvId = document.getElementById('txReceivableSelect').value;
+  const recv = DB.receivables.find(r=>r.id == recvId);
+  const memberArea = document.getElementById('txReceivableMemberArea');
+  const memberSelect = document.getElementById('txReceivableMember');
+  if(recv && recv.type === 'subscription_sharing'){
+    const sub = subscriptionById(recv.subscriptionId);
+    if(sub && sub.members){
+      memberSelect.innerHTML = '<option value="">Pilih Member</option>' + sub.members.map(m=>'<option value="' + m.id + '">' + esc(m.name) + '</option>').join('');
+      memberArea.classList.remove('hidden');
+      return;
+    }
+  }
+  memberArea.classList.add('hidden');
 }
 
 function syncAccountForm(){
@@ -392,9 +423,15 @@ function resetSubscriptionForm(){
   subCycle.value = 'monthly';
   subRenewalDate.value = today();
   subTotal.value = '';
+  document.getElementById('subSharingCost').value = '';
   subAccount.value = '';
   subNote.value = '';
   subStatus.value = 'active';
+  document.getElementById('subCreationMemberName').value = '';
+  document.getElementById('subCreationMemberShare').value = '';
+  document.getElementById('subCreationMemberNote').value = '';
+  subCreationMembers = [];
+  subSharingCostManuallyEdited = false;
   saveSubBtn.textContent = 'Save Subscription';
   cancelSubBtn.classList.add('hidden');
   syncSubscriptionCategory();
@@ -403,6 +440,50 @@ function resetSubscriptionForm(){
 function syncSubscriptionCategory(){
   const isSharing = subSubscriptionCategory.value === 'sharing';
   subMaxMembersArea.classList.toggle('hidden', !isSharing);
+  document.getElementById('subCreationMembersArea').classList.toggle('hidden', !isSharing);
+  document.getElementById('subSharingCostArea').classList.toggle('hidden', !isSharing);
+  if(!isSharing){
+    subCreationMembers = [];
+    renderSubCreationMembersList();
+    subSharingCostManuallyEdited = false;
+    document.getElementById('subSharingCost').value = '';
+  } else {
+    calculateSharingCost();
+  }
+}
+
+function calculateSharingCost(){
+  if(subSharingCostManuallyEdited) return;
+  const totalCost = amountFrom(subTotal);
+  const maxMembers = Number(subMaxMembers.value || 0);
+  if(totalCost > 0 && maxMembers > 0){
+    const sharingCost = Math.round(totalCost / maxMembers);
+    document.getElementById('subSharingCost').value = sharingCost;
+  }
+}
+
+function renderSubCreationMembersList(){
+  const list = document.getElementById('subCreationMembersList');
+  if(subCreationMembers.length === 0){
+    list.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;text-align:center;padding:12px">No members added yet</div>';
+    return;
+  }
+  list.innerHTML = subCreationMembers.map((m, idx) => {
+    let html = '<div style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px">';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-weight:500;color:var(--text)">' + esc(m.name) + '</div>';
+    html += '<div style="color:var(--muted-fg);font-size:12px">Rp ' + m.shareAmount.toLocaleString() + '</div>';
+    if(m.note) html += '<div style="color:var(--muted-fg);font-size:11px;margin-top:2px">' + esc(m.note) + '</div>';
+    html += '</div>';
+    html += '<button onclick="removeSubCreationMember(' + idx + ')" class="btn btn-danger" style="padding:4px 8px;font-size:12px">Remove</button>';
+    html += '</div>';
+    return html;
+  }).join('');
+}
+
+function removeSubCreationMember(idx){
+  subCreationMembers.splice(idx, 1);
+  renderSubCreationMembersList();
 }
 
 function resetDebtPaymentForm(){
@@ -433,9 +514,16 @@ function resetSubMemberForm(){
 function syncTransactionForm(){
   const type = txType.value;
   transferArea.classList.toggle('hidden', type !== 'transfer');
-  txCategory.disabled = type === 'transfer';
+  document.getElementById('debtPaymentArea').classList.toggle('hidden', type !== 'debt_payment');
+  document.getElementById('receivablePaymentArea').classList.toggle('hidden', type !== 'receivable_payment');
+  txCategory.disabled = type === 'transfer' || type === 'debt_payment' || type === 'receivable_payment';
   if(type === 'transfer'){
     txCategory.innerHTML = '<option value="">Transfer</option>';
+    return;
+  }
+
+  if(type === 'debt_payment' || type === 'receivable_payment'){
+    txCategory.innerHTML = '<option value="">Auto-filled</option>';
     return;
   }
 
@@ -445,16 +533,109 @@ function syncTransactionForm(){
   if(items.some(c=>String(c.id) === current)) txCategory.value = current;
 }
 
-document.querySelectorAll('.sidebar button[data-page]').forEach(btn=>{
-  btn.onclick=()=>{
-    document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
-    document.getElementById(btn.dataset.page).classList.remove('hidden');
-  };
+function activatePage(pageId){
+  document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
+  const target = document.getElementById(pageId);
+  if(target) target.classList.remove('hidden');
+  document.querySelectorAll('.nav-link[data-page]').forEach(link=>link.classList.toggle('active', link.dataset.page === pageId));
+}
+
+document.querySelectorAll('.nav-link[data-page]').forEach(btn=>{
+  btn.addEventListener('click', ()=>activatePage(btn.dataset.page));
+});
+
+let fabMenuOpen = false;
+let subCreationMembers = [];
+let subSharingCostManuallyEdited = false;
+
+function toggleFabMenu(){
+  const menu = document.getElementById('fabMenu');
+  fabMenuOpen = !fabMenuOpen;
+  if(fabMenuOpen){
+    menu.classList.remove('hidden');
+  } else {
+    menu.classList.add('hidden');
+  }
+}
+
+function closeFabMenu(){
+  const menu = document.getElementById('fabMenu');
+  menu.classList.add('hidden');
+  fabMenuOpen = false;
+}
+
+fab?.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  toggleFabMenu();
+});
+
+document.addEventListener('click', (e)=>{
+  if(!document.getElementById('fabContainer').contains(e.target)){
+    closeFabMenu();
+  }
+});
+
+document.querySelectorAll('.fab-menu-item').forEach(item=>{
+  item.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const action = item.dataset.action;
+    closeFabMenu();
+    
+    switch(action){
+      case 'transaction':
+        activatePage('transactions');
+        resetTransactionForm();
+        openModal('transactionModal');
+        break;
+      case 'debt':
+        activatePage('debts');
+        resetDebtForm();
+        openModal('debtModal');
+        break;
+      case 'receivable':
+        activatePage('receivables');
+        resetReceivableForm();
+        openModal('receivableModal');
+        break;
+      case 'subscription':
+        activatePage('dashboard');
+        resetSubscriptionForm();
+        openModal('subscriptionModal');
+        break;
+      case 'account':
+        activatePage('accounts');
+        resetAccountForm();
+        openModal('accountModal');
+        break;
+    }
+  });
+});
+
+document.getElementById('addMemberToCreationBtn')?.addEventListener('click', ()=>{
+  const name = document.getElementById('subCreationMemberName').value.trim();
+  const shareAmount = amountFrom(document.getElementById('subCreationMemberShare'));
+  const note = document.getElementById('subCreationMemberNote').value.trim();
+  
+  if(!name) return alert('Isi nama member.');
+  if(!requirePositive(shareAmount, 'Nilai share harus lebih dari 0.')) return;
+  
+  subCreationMembers.push({name, shareAmount, note});
+  document.getElementById('subCreationMemberName').value = '';
+  document.getElementById('subCreationMemberShare').value = '';
+  document.getElementById('subCreationMemberNote').value = '';
+  renderSubCreationMembersList();
 });
 
 txType.onchange = syncTransactionForm;
+document.getElementById('txReceivableSelect').onchange = syncTransactionReceivableMembers;
 accType.onchange = syncAccountForm;
 debtType.onchange = syncDebtForm;
+
+subTotal.addEventListener('input', calculateSharingCost);
+subMaxMembers.addEventListener('input', calculateSharingCost);
+document.getElementById('subSharingCost').addEventListener('input', ()=>{
+  subSharingCostManuallyEdited = true;
+});
 
 saveAccountBtn.onclick = ()=>{
   const name = accName.value.trim();
@@ -514,6 +695,98 @@ saveTxBtn.onclick = ()=>{
   const amount = amountFrom(txAmount);
   const date = txDate.value || today();
   if(!requirePositive(amount)) return;
+
+  // Handle debt_payment type
+  if(type === 'debt_payment'){
+    const debt = DB.debts.find(d=>d.id == document.getElementById('txDebtSelect').value);
+    const account = DB.accounts.find(a=>a.id == txFrom.value);
+    if(!debt || !account) return alert('Lengkapi data.');
+    if(account.type === 'Credit Card') return alert('Pembayaran hutang harus dari account kas/bank, bukan kartu kredit.');
+    if(amount > debt.remaining) return alert('Pembayaran melebihi sisa hutang.');
+    if(!adjustAccountBalance(account, -amount)) return alert('Saldo tidak cukup.');
+    
+    debt.remaining = Math.max(0, debt.remaining - amount);
+    if(debt.type === 'credit_card' && debt.creditCardId){
+      const card = DB.accounts.find(a=>a.id == debt.creditCardId);
+      if(card) adjustCreditUsed(card, -amount);
+    }
+    
+    const txId = nextId();
+    DB.transactions.push({id: txId, date, type:'debt_payment', category: debt.name, amount, accountId: account.id, debtId: debt.id, creditCardId: debt.creditCardId || null, note: txNote.value.trim() || 'Bayar hutang'});
+    debt.paymentHistory = debt.paymentHistory || [];
+    debt.paymentHistory.push({id: nextId(), date, amount, accountId: account.id, note: txNote.value.trim(), transactionId: txId});
+    
+    resetTransactionForm();
+    save();
+    closeModal('transactionModal');
+    return;
+  }
+
+  // Handle receivable_payment type
+  if(type === 'receivable_payment'){
+    const recv = DB.receivables.find(r=>r.id == document.getElementById('txReceivableSelect').value);
+    const account = DB.accounts.find(a=>a.id == txFrom.value);
+    if(!recv || !account) return alert('Lengkapi data.');
+    if(account.type === 'Credit Card') return alert('Penerimaan piutang harus masuk account kas/bank, bukan kartu kredit.');
+    if(amount > recv.remaining) return alert('Pembayaran melebihi sisa piutang.');
+    
+    let memberId = null;
+    if(recv.type === 'subscription_sharing'){
+      const member = subscriptionById(recv.subscriptionId)?.members.find(m=>m.id == document.getElementById('txReceivableMember').value);
+      if(!member) return alert('Pilih member subscription.');
+      const memberRemaining = Math.max(0, Number(member.shareAmount || 0) - Number(member.amountPaid || 0));
+      if(amount > memberRemaining) return alert('Pembayaran melebihi sisa member.');
+      member.amountPaid = Number(member.amountPaid || 0) + amount;
+      member.paid = member.amountPaid >= Number(member.shareAmount || 0);
+      if(member.paid){ member.paymentDate = date; }
+      memberId = member.id;
+    }
+    
+    adjustAccountBalance(account, amount);
+    recv.remaining = Math.max(0, recv.remaining - amount);
+    const txId = nextId();
+    DB.transactions.push({
+      id: txId,
+      date,
+      type:'receivable_payment',
+      category: recv.name,
+      amount,
+      accountId: account.id,
+      receivableId: recv.id,
+      subscriptionId: recv.subscriptionId || null,
+      memberId,
+      debtId: recv.debtId || null,
+      note: txNote.value.trim() || 'Terima piutang'
+    });
+    recv.collectionHistory = recv.collectionHistory || [];
+    recv.collectionHistory.push({
+      id: nextId(),
+      date,
+      amount,
+      accountId: account.id,
+      memberId,
+      note: txNote.value.trim(),
+      transactionId: txId
+    });
+    const sub = subscriptionById(recv.subscriptionId);
+    if(sub){
+      sub.paymentHistory = sub.paymentHistory || [];
+      sub.paymentHistory.push({
+        id: nextId(),
+        date,
+        amount,
+        accountId: account.id,
+        memberId,
+        note: txNote.value.trim(),
+        transactionId: txId
+      });
+    }
+    
+    resetTransactionForm();
+    save();
+    closeModal('transactionModal');
+    return;
+  }
 
   if(editingTransactionId){
     const tx = DB.transactions.find(t=>t.id == editingTransactionId);
@@ -817,6 +1090,7 @@ saveSubBtn.onclick = ()=>{
   const category = categoryById(subCategory.value);
   const subscriptionCategory = subSubscriptionCategory.value === 'sharing' ? 'sharing' : 'personal';
   const maxMembers = subscriptionCategory === 'sharing' ? Number(subMaxMembers.value || 0) : null;
+  const sharingCost = subscriptionCategory === 'sharing' ? Number(document.getElementById('subSharingCost').value || 0) : null;
   const cycle = subCycle.value;
   const renewalDate = subRenewalDate.value || today();
   const totalCost = amountFrom(subTotal);
@@ -841,6 +1115,7 @@ saveSubBtn.onclick = ()=>{
       category: category.name,
       subscriptionCategory,
       maxMembers,
+      sharingCost,
       cycle,
       renewalDate,
       totalCost,
@@ -865,13 +1140,14 @@ saveSubBtn.onclick = ()=>{
     category: category.name,
     subscriptionCategory,
     maxMembers,
+    sharingCost,
     cycle,
     renewalDate,
     totalCost,
     accountId: account?.id || null,
     note: subNote.value.trim(),
     status,
-    members: [],
+    members: subCreationMembers.map(m => ({id: nextId(), name: m.name, shareAmount: m.shareAmount, note: m.note, paid: false, paymentDate: '', amountPaid: 0})),
     paymentHistory: [],
     receivableId: null,
     creditCardId: account?.type === 'Credit Card' ? account.id : null
@@ -1134,9 +1410,11 @@ function editSubscription(id){
   subCycle.value = sub.cycle || 'monthly';
   subRenewalDate.value = sub.renewalDate || today();
   subTotal.value = sub.totalCost || '';
+  document.getElementById('subSharingCost').value = sub.subscriptionCategory === 'sharing' ? (sub.sharingCost || '') : '';
   subAccount.value = sub.accountId || '';
   subNote.value = sub.note || '';
   subStatus.value = sub.status || 'active';
+  subSharingCostManuallyEdited = false;
   saveSubBtn.textContent = 'Update Subscription';
   cancelSubBtn.classList.remove('hidden');
   syncSubscriptionCategory();
@@ -1163,6 +1441,21 @@ function editTransaction(id){
   txNote.value = tx.note || '';
   txFrom.value = tx.accountId || tx.fromId || tx.creditCardId || '';
   txTo.value = tx.toId || '';
+  
+  populateTransactionDebtSelect();
+  populateTransactionReceivableSelect();
+  
+  if(tx.type === 'debt_payment'){
+    document.getElementById('txDebtSelect').value = tx.debtId || '';
+  }
+  if(tx.type === 'receivable_payment'){
+    document.getElementById('txReceivableSelect').value = tx.receivableId || '';
+    syncTransactionReceivableMembers();
+    if(tx.memberId){
+      document.getElementById('txReceivableMember').value = tx.memberId;
+    }
+  }
+  
   saveTxBtn.textContent = 'Update Transaction';
   cancelTxBtn.classList.remove('hidden');
   syncTransactionForm();
@@ -1214,12 +1507,107 @@ function render(){
   const creditLimit = cardsCredit.reduce((a,b)=>a+b.creditLimit,0);
   const usedLimit = cardsCredit.reduce((a,b)=>a+b.usedLimit,0);
   const availableLimit = Math.max(0, creditLimit - usedLimit);
+  const netWorth = cash + recv - debt;
 
-  cards.innerHTML = '<div class="card"><h3>Net Worth</h3><p class="amount">' + rp(cash + recv - debt) + '</p></div>' +
-    '<div class="card"><h3>Cash & Bank</h3><p class="amount">' + rp(cash) + '</p></div>' +
-    '<div class="card"><h3>Debt</h3><p class="amount">' + rp(debt) + '</p></div>' +
-    '<div class="card"><h3>Receivables</h3><p class="amount">' + rp(recv) + '</p></div>' +
-    '<div class="card"><h3>Credit Card Limit</h3><p class="amount">' + rp(availableLimit) + '</p><span class="meta">Total: ' + rp(creditLimit) + ' - Used: ' + rp(usedLimit) + '</span></div>';
+  // Render Dashboard - Net Worth Hero
+  const netWorthEl = document.getElementById('netWorthAmount');
+  if(netWorthEl) netWorthEl.textContent = rp(netWorth);
+  
+  // Render Dashboard - Net Worth Breakdown
+  const breakdownCash = document.getElementById('breakdownCash');
+  const breakdownRecv = document.getElementById('breakdownRecv');
+  const breakdownDebt = document.getElementById('breakdownDebt');
+  if(breakdownCash) breakdownCash.textContent = rp(cash);
+  if(breakdownRecv) breakdownRecv.textContent = rp(recv);
+  if(breakdownDebt) breakdownDebt.textContent = rp(debt);
+
+  // Render Dashboard - Overview Cards
+  const overviewCardsEl = document.getElementById('overviewCards');
+  if(overviewCardsEl){
+    overviewCardsEl.innerHTML = 
+      '<div class="overview-card">' +
+        '<div class="overview-card-label">Cash & Bank</div>' +
+        '<div class="overview-card-value">' + rp(cash) + '</div>' +
+      '</div>' +
+      '<div class="overview-card">' +
+        '<div class="overview-card-label">Debt</div>' +
+        '<div class="overview-card-value">' + rp(debt) + '</div>' +
+      '</div>' +
+      '<div class="overview-card">' +
+        '<div class="overview-card-label">Receivables</div>' +
+        '<div class="overview-card-value">' + rp(recv) + '</div>' +
+      '</div>' +
+      '<div class="overview-card">' +
+        '<div class="overview-card-label">Available Credit</div>' +
+        '<div class="overview-card-value">' + rp(availableLimit) + '</div>' +
+        '<div class="overview-card-meta">' + rp(creditLimit) + ' limit</div>' +
+      '</div>';
+  }
+
+  // Render Dashboard - Need Attention Section
+  const alerts = [];
+  cardsCredit.forEach(card => {
+    const usage = card.creditLimit > 0 ? (card.usedLimit / card.creditLimit) * 100 : 0;
+    if(usage > 80){
+      alerts.push({
+        title: 'High Credit Card Usage',
+        message: esc(card.name) + ' is ' + Math.round(usage) + '% used (' + rp(card.usedLimit) + ' / ' + rp(card.creditLimit) + ')'
+      });
+    }
+  });
+  
+  DB.debts.forEach(d => {
+    if(d.remaining > 0 && d.dueDay){
+      const today_date = parseInt(today().split('-')[2]);
+      if(d.dueDay <= today_date + 7 && d.dueDay > today_date){
+        alerts.push({
+          title: 'Debt Due Soon',
+          message: esc(d.name) + ' is due on day ' + d.dueDay + '. Remaining: ' + rp(d.remaining)
+        });
+      }
+    }
+  });
+
+  const needAttentionSec = document.getElementById('needAttentionSection');
+  const attentionItems = document.getElementById('attentionItems');
+  if(attentionItems){
+    if(alerts.length > 0){
+      needAttentionSec.classList.remove('hidden');
+      attentionItems.innerHTML = alerts.map(a => 
+        '<div class="alert-item">' +
+          '<div class="alert-title">' + esc(a.title) + '</div>' +
+          '<div class="alert-message">' + a.message + '</div>' +
+        '</div>'
+      ).join('');
+    } else {
+      needAttentionSec.classList.add('hidden');
+    }
+  }
+
+  // Render Dashboard - Recent Transactions
+  const recentTransList = document.getElementById('recentTransactionsList');
+  if(recentTransList){
+    const recent = DB.transactions.slice().reverse().slice(0, 5);
+    if(recent.length > 0){
+      recentTransList.innerHTML = recent.map(t => {
+        const accountLabel = t.type === 'transfer' ? (esc(accountName(t.fromId)) + ' → ' + esc(accountName(t.toId))) : esc(accountName(t.accountId || t.creditCardId || '-'));
+        const amountClass = t.type === 'income' ? 'income' : (t.type === 'expense' ? 'expense' : 'transfer');
+        const sign = t.type === 'income' ? '+' : (t.type === 'transfer' ? '' : '-');
+        return '<div class="transaction-item">' +
+          '<div class="transaction-info">' +
+            '<div class="transaction-header">' +
+              '<span class="transaction-date">' + esc(t.date) + '</span>' +
+            '</div>' +
+            '<div class="transaction-category">' + esc(t.category || 'Transfer') + '</div>' +
+            '<div class="transaction-meta">' + accountLabel + '</div>' +
+          '</div>' +
+          '<div class="transaction-amount ' + amountClass + '">' + sign + rp(t.amount) + '</div>' +
+        '</div>';
+      }).join('');
+    } else {
+      recentTransList.innerHTML = '<div class="transactions-empty">Belum ada transaksi</div>';
+    }
+  }
 
   const selectedFrom = txFrom.value;
   const selectedTo = txTo.value;
@@ -1250,60 +1638,255 @@ function render(){
   subAccount.innerHTML = '<option value="">Pilih Account</option>' + DB.accounts.map(a=>'<option value="' + a.id + '">' + esc(a.name) + ' (' + esc(a.type) + ')</option>').join('');
   subMemberSubscription.innerHTML = '<option value="">Pilih Subscription</option>' + DB.subscriptions.map(s=>'<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
 
-  accountsList.innerHTML = DB.accounts.map(a=>{
-    if(a.type === 'Credit Card'){
-      return '<div class="card"><strong>' + esc(a.name) + '</strong><br><span class="badge credit">Credit Card</span><br><span class="meta">Limit: ' + rp(a.creditLimit) + ' - Used: ' + rp(a.usedLimit) + ' - Available: ' + rp(creditAvailable(a)) + '</span><div class="actions"><button onclick="editAccount(' + a.id + ')">Edit</button><button class="danger" onclick="deleteAccount(' + a.id + ')">Hapus</button></div></div>';
-    }
-    return '<div class="card"><strong>' + esc(a.name) + '</strong><br><span class="meta">' + esc(a.type) + '</span><br><span class="amount">' + rp(a.balance) + '</span><div class="actions"><button onclick="editAccount(' + a.id + ')">Edit</button><button class="danger" onclick="deleteAccount(' + a.id + ')">Hapus</button></div></div>';
-  }).join('') || '<div class="card meta">Belum ada account.</div>';
+  accountsList.innerHTML = DB.accounts.length === 0 
+    ? '<div class="account-empty"><div class="account-empty-icon">💳</div><p class="account-empty-text">No accounts yet</p><p class="account-empty-hint">Add your first account to start tracking</p></div>'
+    : DB.accounts.map(a => {
+      const icon = a.type === 'Credit Card' ? '💳' : a.type === 'Bank' ? '🏦' : a.type === 'E-Wallet' ? '📱' : '💰';
+      
+      if (a.type === 'Credit Card') {
+        const used = a.usedLimit || 0;
+        const limit = a.creditLimit || 0;
+        const available = creditAvailable(a);
+        const usagePercent = limit > 0 ? Math.round((used / limit) * 100) : 0;
+        const usageColor = usagePercent > 80 ? 'danger' : usagePercent > 50 ? 'warning' : 'success';
+        
+        return `<div class="account-card" data-account-id="${a.id}">
+          <div class="account-header">
+            <div class="account-icon">${icon}</div>
+            <div style="flex:1">
+              <h3 class="account-name">${esc(a.name)}</h3>
+              <span class="account-type-badge">Credit Card</span>
+            </div>
+          </div>
+          <div class="credit-card-info">
+            <div class="credit-card-row">
+              <span class="credit-card-label">Limit</span>
+              <span class="credit-card-value">${rp(limit)}</span>
+            </div>
+            <div class="credit-card-row">
+              <span class="credit-card-label">Used</span>
+              <span class="credit-card-value">${rp(used)}</span>
+            </div>
+            <div style="grid-column:1/-1">
+              <div class="credit-usage-bar">
+                <div class="credit-usage-fill" style="width:${Math.min(usagePercent, 100)}%"></div>
+              </div>
+              <div class="credit-usage-label">${usagePercent}% utilization</div>
+            </div>
+            <div class="credit-card-row">
+              <span class="credit-card-label">Available</span>
+              <span class="credit-card-value">${rp(available)}</span>
+            </div>
+          </div>
+          <div class="account-actions">
+            <button class="btn btn-secondary" onclick="editAccount(${a.id})">Edit</button>
+            <button class="btn btn-danger" onclick="deleteAccount(${a.id})">Delete</button>
+          </div>
+        </div>`;
+      }
+      
+      return `<div class="account-card" data-account-id="${a.id}">
+        <div class="account-header">
+          <div class="account-icon">${icon}</div>
+          <div style="flex:1">
+            <h3 class="account-name">${esc(a.name)}</h3>
+            <span class="account-type-badge">${esc(a.type)}</span>
+          </div>
+        </div>
+        <div class="account-balance-section">
+          <span class="account-balance-label">Current Balance</span>
+          <div class="account-balance-amount">${rp(a.balance)}</div>
+        </div>
+        <div class="account-actions">
+          <button class="btn btn-secondary" onclick="editAccount(${a.id})">Edit</button>
+          <button class="btn btn-danger" onclick="deleteAccount(${a.id})">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
 
-  debtList.innerHTML = DB.debts.map(d=>{
-    const paid = Math.max(0, d.total - d.remaining);
-    const historyLines = (Array.isArray(d.paymentHistory) ? d.paymentHistory.map(h => '<div class="meta">' + esc(h.date) + ' - ' + rp(h.amount) + ' - ' + esc(accountName(h.accountId)) + (h.note ? ' - ' + esc(h.note) : '') + '</div>' ).join('') : '');
-    const tags = d.type === 'credit_card' ? '<span class="badge credit">Credit Card: ' + esc(accountName(d.creditCardId)) + '</span>' : '<span class="badge">Regular</span>';
-    const borrower = d.borrower ? '<span class="badge borrowed">Borrower: ' + esc(d.borrower) + '</span>' : '';
-    const tenor = d.tenor ? '<br><span class="meta">Progress: ' + Math.min(d.tenor, Math.floor(paid / (d.total / d.tenor))) + '/' + d.tenor + (d.dueDay ? ' - Due day: ' + d.dueDay : '') + '</span>' : '';
-    return '<div class="card"><strong>' + esc(d.name) + '</strong><br>' + tags + ' ' + borrower + '<br><span class="meta">Total: ' + rp(d.total) + ' - Paid: ' + rp(paid) + ' - Sisa: ' + rp(d.remaining) + '</span>' + tenor + (historyLines ? '<div style="margin-top:8px"><strong>History</strong>' + historyLines + '</div>' : '') + '<div class="actions"><button onclick="editDebt(' + d.id + ')">Edit</button><button class="danger" onclick="deleteDebt(' + d.id + ')">Hapus</button></div></div>';
-  }).join('') || '<div class="card meta">Belum ada hutang.</div>';
+  debtList.innerHTML = DB.debts.length === 0 
+    ? '<div class="debts-empty-state"><div class="debts-empty-icon">📭</div><div class="debts-empty-title">No Debts</div><div class="debts-empty-text">Start by adding a debt to track your liabilities.</div></div>'
+    : DB.debts.map(d => {
+        const paid = Math.max(0, d.total - d.remaining);
+        const percentage = d.total > 0 ? (paid / d.total) * 100 : 0;
+        const status = d.remaining === 0 ? 'paid' : (d.dueDay && new Date().getDate() > d.dueDay) ? 'overdue' : 'on-time';
+        const statusLabel = status === 'paid' ? 'Paid Off' : status === 'overdue' ? 'Overdue' : 'On Track';
+        const icon = d.type === 'credit_card' ? '💳' : '📋';
+        const tenor = d.tenor ? ` • ${Math.floor(paid / (d.total / d.tenor))}/${d.tenor} paid` : '';
+        const dueInfo = d.dueDay ? ` • Due: ${d.dueDay}th` : '';
+        
+        return `<div class="debt-card">
+          <div class="debt-type-icon">${icon}</div>
+          <div class="debt-header">
+            <h3 class="debt-name">${esc(d.name)}</h3>
+            <span class="debt-type-label">${d.type === 'credit_card' ? 'Credit Card' : d.borrower ? 'Borrowed from: ' + esc(d.borrower) : 'Regular Debt'}</span>
+          </div>
+          <div class="debt-progress">
+            <div class="debt-progress-bar">
+              <div class="debt-progress-fill" style="width:${percentage}%"></div>
+            </div>
+            <span class="debt-progress-text">${rp(paid)} of ${rp(d.total)}</span>
+          </div>
+          <div class="debt-amount-col">
+            <div class="debt-amount">${rp(d.remaining)}</div>
+            <span class="debt-status ${status}">${statusLabel}</span>
+          </div>
+          <div class="debt-actions">
+            <button class="edit-btn" onclick="editDebt(${d.id})" title="Edit debt">✏️</button>
+            <button class="delete-btn" onclick="deleteDebt(${d.id})" title="Delete debt">🗑️</button>
+          </div>
+          <div class="debt-meta">${d.type === 'credit_card' ? esc(accountName(d.creditCardId)) : 'Personal'}${tenor}${dueInfo}</div>
+        </div>`;
+      }).join('');
 
-  receivableList.innerHTML = DB.receivables.map(r=>{
-    const history = Array.isArray(r.collectionHistory) ? r.collectionHistory.map(h => {
-      const member = h.memberId ? subscriptionById(r.subscriptionId)?.members.find(m=>m.id==h.memberId) : null;
-      return '<div class="meta">' + esc(h.date) + ' - ' + rp(h.amount) + ' - ' + esc(accountName(h.accountId)) + (member ? ' - ' + esc(member.name) : '') + (h.note ? ' - ' + esc(h.note) : '') + '</div>';
-    }).join('') : '';
-    const typeLabel = r.type === 'subscription_sharing' ? 'Subscription' : 'Regular';
-    const details = r.type === 'subscription_sharing' ? '<br><span class="meta">Subscription: ' + esc(subscriptionById(r.subscriptionId)?.name || '-') + '</span>' : '';
-    return '<div class="card"><strong>' + esc(r.name) + '</strong><br><span class="badge">' + typeLabel + '</span>' + details + '<br><span class="meta">Total: ' + rp(r.total) + ' - Sisa: ' + rp(r.remaining) + '</span>' + (history ? '<div style="margin-top:8px"><strong>History</strong>' + history + '</div>' : '') + '<div class="actions"><button onclick="editReceivable(' + r.id + ')">Edit</button><button class="danger" onclick="deleteReceivable(' + r.id + ')">Hapus</button></div></div>';
-  }).join('') || '<div class="card meta">Belum ada piutang.</div>';
+  receivableList.innerHTML = DB.receivables.length === 0 
+    ? '<div class="receivables-empty-state"><div class="receivables-empty-icon">📭</div><div class="receivables-empty-title">No Receivables</div><div class="receivables-empty-text">Start by adding a receivable to track money owed to you.</div></div>'
+    : DB.receivables.map(r => {
+        const collected = Math.max(0, r.total - r.remaining);
+        const percentage = r.total > 0 ? (collected / r.total) * 100 : 0;
+        const status = r.remaining === 0 ? 'collected' : 'pending';
+        const statusLabel = status === 'collected' ? 'Collected' : 'Pending';
+        const icon = r.type === 'subscription_sharing' ? '🎥' : '💰';
+        const subDetails = r.type === 'subscription_sharing' ? subscriptionById(r.subscriptionId)?.name || '-' : '';
+        
+        return `<div class="receivable-card">
+          <div class="receivable-type-icon">${icon}</div>
+          <div class="receivable-header">
+            <h3 class="receivable-name">${esc(r.name)}</h3>
+            <span class="receivable-type-label">${r.type === 'subscription_sharing' ? 'Subscription Sharing' : 'Regular Receivable'}</span>
+          </div>
+          <div class="receivable-progress">
+            <div class="receivable-progress-bar">
+              <div class="receivable-progress-fill" style="width:${percentage}%"></div>
+            </div>
+            <span class="receivable-progress-text">${rp(collected)} of ${rp(r.total)}</span>
+          </div>
+          <div class="receivable-amount-col">
+            <div class="receivable-amount">${rp(r.remaining)}</div>
+            <span class="receivable-status ${status}">${statusLabel}</span>
+          </div>
+          <div class="receivable-actions">
+            <button class="edit-btn" onclick="editReceivable(${r.id})" title="Edit receivable">✏️</button>
+            <button class="delete-btn" onclick="deleteReceivable(${r.id})" title="Delete receivable">🗑️</button>
+          </div>
+          <div class="receivable-meta">${subDetails ? 'From: ' + esc(subDetails) : 'Personal Receivable'}</div>
+        </div>`;
+      }).join('');
 
-  categoriesList.innerHTML = DB.categories.map(c=>'<div class="card"><strong>' + esc(c.name) + '</strong><br><span class="badge">' + categoryTypeLabel(c.type) + '</span><div class="actions"><button class="danger" onclick="deleteCategory(' + c.id + ')">Hapus</button></div></div>').join('') || '<div class="card meta">Belum ada kategori.</div>';
+  categoriesList.innerHTML = DB.categories.length === 0
+    ? '<div class="categories-empty-state"><div class="categories-empty-icon">📭</div><div class="categories-empty-title">No Categories</div><div class="categories-empty-text">Add a category to organize your transactions.</div></div>'
+    : DB.categories.map(c => {
+        const typeClass = c.type === 'income' ? 'income' : c.type === 'expense' ? 'expense' : 'all';
+        const typeLabel = c.type === 'all' ? 'All Types' : c.type === 'income' ? 'Income' : 'Expense';
+        const transactionCount = DB.transactions.filter(t => t.categoryId === c.id || t.category === c.name).length;
+        
+        return `<div class="category-card">
+          <div class="category-info">
+            <h3 class="category-name">${esc(c.name)}</h3>
+            <span class="category-type ${typeClass}">${typeLabel}</span>
+          </div>
+          <div class="category-meta" style="font-size:12px;color:var(--muted-fg)">
+            ${transactionCount} transaction${transactionCount !== 1 ? 's' : ''}
+          </div>
+          <div class="category-actions">
+            <button class="btn btn-danger" onclick="deleteCategory(${c.id})">Delete</button>
+          </div>
+        </div>`;
+      }).join('');
 
-  subscriptionsList.innerHTML = DB.subscriptions.map(s=>{
-    const account = accountName(s.accountId);
-    const memberCount = s.members.length;
-    const maxMembers = s.maxMembers || 0;
-    const remainingSlots = maxMembers ? Math.max(0, maxMembers - memberCount) : 0;
-    const totalMemberShares = s.members.reduce((sum,m)=>sum + Number(m.shareAmount || 0),0);
-    const totalPaidByMembers = s.members.reduce((sum,m)=>sum + Number(m.amountPaid || 0),0);
-    const totalCost = Number(s.totalCost || 0);
-    const costPerPerson = memberCount ? totalCost / memberCount : maxMembers ? totalCost / maxMembers : 0;
-    const ownerContribution = Math.max(0, totalCost - totalMemberShares);
-    const subCollected = totalPaidByMembers;
-    const subRemaining = Math.max(0, totalCost - totalPaidByMembers);
-    const shareLabel = s.subscriptionCategory === 'sharing' ? '<span class="badge sharing">Sharing</span>' : '<span class="badge">Personal</span>';
-    const summary = s.subscriptionCategory === 'sharing' ? '<br><span class="meta">Members: ' + memberCount + (maxMembers ? ' / ' + maxMembers : '') + ' - Remaining slots: ' + remainingSlots + '</span><br><span class="meta">Cost / person: ' + rp(Math.round(costPerPerson)) + ' - Member shares: ' + rp(totalMemberShares) + '</span>' + (ownerContribution > 0 ? '<br><span class="meta">Owner contribution needed: ' + rp(ownerContribution) + '</span>' : '<br><span class="meta">Member shares cover full cost.</span>') : '';
-    const memberLines = memberCount ? '<div class="meta" style="margin-top:8px"><strong>Members:</strong>' + s.members.map(m=>'<div style="margin-top:4px">' + esc(m.name) + ' - ' + rp(m.shareAmount) + ' - ' + (m.paid ? 'Paid' : 'Unpaid') + (m.paymentDate ? ' on ' + esc(m.paymentDate) : '') + ' - Remaining: ' + rp(Math.max(0, Number(m.shareAmount||0) - Number(m.amountPaid||0))) + '</div>').join('') + '</div>' : '';
-    const payments = s.paymentHistory.length ? '<br><span class="meta">Payments: ' + s.paymentHistory.length + '</span>' : '';
-    const badge = '<span class="badge">' + esc(s.status) + '</span>';
-    return '<div class="card"><strong>' + esc(s.name) + '</strong><br>' + badge + ' ' + shareLabel + '<br><span class="meta">Category: ' + esc(s.category) + ' - Cycle: ' + esc(s.cycle) + '</span>' + summary + '<br><span class="meta">Renewal: ' + esc(s.renewalDate) + ' - Total: ' + rp(totalCost) + ' - Collected: ' + rp(subCollected) + ' - Remaining: ' + rp(subRemaining) + '</span><br><span class="meta">Account: ' + esc(account) + '</span>' + memberLines + payments + '<div class="actions"><button onclick="editSubscription(' + s.id + ')">Edit</button><button class="danger" onclick="deleteSubscription(' + s.id + ')">Hapus</button></div></div>';
-  }).join('') || '<div class="card meta">Belum ada subscription.</div>';
+  subscriptionsList.innerHTML = DB.subscriptions.length === 0 
+    ? '<div class="subscriptions-empty-state"><div class="subscriptions-empty-icon">📭</div><div class="subscriptions-empty-title">No Subscriptions</div><div class="subscriptions-empty-text">Start by adding a subscription to track recurring services.</div></div>'
+    : DB.subscriptions.map(s => {
+        const memberCount = s.members.length;
+        const maxMembers = s.maxMembers || 0;
+        const remainingSlots = maxMembers ? Math.max(0, maxMembers - memberCount) : 0;
+        const totalMemberShares = s.members.reduce((sum,m)=>sum + Number(m.shareAmount || 0),0);
+        const totalCost = Number(s.totalCost || 0);
+        const costPerPerson = memberCount ? Math.round(totalCost / memberCount) : maxMembers ? Math.round(totalCost / maxMembers) : 0;
+        const icon = s.subscriptionCategory === 'sharing' ? '👥' : '🎁';
+        const typeLabel = s.subscriptionCategory === 'sharing' ? 'Sharing' : 'Personal';
+        const memberInfo = s.subscriptionCategory === 'sharing' ? `${memberCount}${maxMembers ? '/' + maxMembers : ''} members` : '';
+        
+        return `<div class="subscription-card">
+          <div class="subscription-header">
+            <div class="subscription-icon">${icon}</div>
+            <div class="subscription-title-section">
+              <h3 class="subscription-name">${esc(s.name)}</h3>
+              <div class="subscription-category">${esc(s.category)}</div>
+            </div>
+          </div>
+          <div class="subscription-badges">
+            <span class="subscription-badge status">${esc(s.status)}</span>
+            <span class="subscription-badge type">${typeLabel}</span>
+          </div>
+          <div class="subscription-details">
+            <div class="subscription-detail-item">
+              <span class="subscription-detail-label">Total Cost</span>
+              <span class="subscription-detail-value">${rp(totalCost)}</span>
+            </div>
+            <div class="subscription-detail-item">
+              <span class="subscription-detail-label">Cycle</span>
+              <span class="subscription-detail-value">${esc(s.cycle)}</span>
+            </div>
+            <div class="subscription-detail-item">
+              <span class="subscription-detail-label">Next Renewal</span>
+              <span class="subscription-detail-value">${esc(s.renewalDate)}</span>
+            </div>
+            <div class="subscription-detail-item">
+              <span class="subscription-detail-label">Account</span>
+              <span class="subscription-detail-value">${esc(accountName(s.accountId))}</span>
+            </div>
+          </div>
+          ${s.subscriptionCategory === 'sharing' ? `<div class="subscription-members">
+            <div>
+              <div class="subscription-members-info">${memberInfo}</div>
+              <div class="subscription-members-slots">Cost per person: ${rp(costPerPerson)}</div>
+            </div>
+            ${remainingSlots > 0 ? `<div class="subscription-members-slots">+${remainingSlots} slot${remainingSlots > 1 ? 's' : ''}</div>` : ''}
+          </div>` : ''}
+          <div class="subscription-actions">
+            <button onclick="editSubscription(${s.id})">Edit</button>
+            <button class="delete-btn" onclick="deleteSubscription(${s.id})">Delete</button>
+          </div>
+        </div>`;
+      }).join('');
 
   const keyword = (searchInput?.value || '').toLowerCase();
-  transactionsList.innerHTML = DB.transactions
+  const filtered = DB.transactions
     .filter(t => !keyword || (t.category||'').toLowerCase().includes(keyword) || (t.note||'').toLowerCase().includes(keyword) || accountName(t.accountId || t.fromId || t.creditCardId || '').toLowerCase().includes(keyword))
-    .slice().reverse()
-    .map(t=>'<div class="card"><strong>' + esc(t.date) + '</strong><br><span class="meta">' + esc(t.type) + '</span><br>' + esc(t.category || '-') + '<br><span class="amount">' + rp(t.amount) + '</span><br><span class="meta">' + transactionMeta(t) + '</span><div class="actions"><button onclick="editTransaction(' + t.id + ')">Edit</button><button class="danger" onclick="deleteTransaction(' + t.id + ')">Hapus</button></div></div>')
-    .join('') || '<div class="card meta">Belum ada transaksi.</div>';
+    .slice().reverse();
+
+  transactionsList.innerHTML = filtered.length === 0
+    ? '<div class="transactions-empty-state"><div class="transactions-empty-icon">📭</div><p class="transactions-empty-title">No transactions</p><p class="transactions-empty-text">Start by adding your first income, expense, or transfer</p></div>'
+    : filtered.map(t => {
+      const icon = t.type === 'income' ? '💰' : t.type === 'expense' ? '💸' : t.type === 'transfer' ? '🔄' : '📝';
+      const typeClass = t.type === 'income' ? 'income' : t.type === 'expense' ? 'expense' : 'transfer';
+      const meta = transactionMeta(t);
+      const category = esc(t.category || 'Uncategorized');
+      
+      return `<div class="transaction-card">
+        <div class="transaction-type-icon ${typeClass}">${icon}</div>
+        <div class="transaction-details">
+          <div class="transaction-header-line">
+            <span class="transaction-date">${esc(t.date)}</span>
+            <span class="transaction-type-label">${esc(t.type)}</span>
+          </div>
+          <div class="transaction-category">${category}</div>
+          <div class="transaction-meta-line">
+            <span class="transaction-meta-icon">📍</span>
+            <span>${meta}</span>
+            ${t.note ? `<span class="transaction-meta-icon">📌</span><span>${esc(t.note)}</span>` : ''}
+          </div>
+        </div>
+        <div class="transaction-amount-col">
+          <div class="transaction-amount ${typeClass}">${rp(t.amount)}</div>
+        </div>
+        <div class="transaction-actions">
+          <button class="edit-btn" onclick="editTransaction(${t.id})" title="Edit">✏️</button>
+          <button class="delete-btn" onclick="deleteTransaction(${t.id})" title="Delete">🗑️</button>
+        </div>
+      </div>`;
+    }).join('');
 }
 
 function categoryTypeLabel(type){
@@ -1376,5 +1959,17 @@ syncAccountForm();
 syncDebtForm();
 syncReceivableType();
 initModalTriggers();
+
+// Dashboard expand/collapse listener
+const netWorthToggle = document.getElementById('netWorthToggle');
+const netWorthBreakdown = document.getElementById('netWorthBreakdown');
+if(netWorthToggle){
+  netWorthToggle.addEventListener('click', ()=>{
+    netWorthBreakdown.classList.toggle('hidden');
+    netWorthToggle.setAttribute('aria-expanded', netWorthBreakdown.classList.contains('hidden') ? 'false' : 'true');
+  });
+}
+
+activatePage('dashboard');
 render();
 
