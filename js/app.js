@@ -63,7 +63,7 @@ function migrate(){
 
   DB.debts.forEach(d=>{
     d.id = Number(d.id) || nextId();
-    d.name = String(d.name || '').trim() || 'Hutang';
+    d.name = String(d.name || '').trim() || 'Debt';
     d.type = d.type || 'regular';
     d.remaining = Number(d.remaining || 0);
     d.total = Number(d.total || d.remaining || 0);
@@ -86,7 +86,7 @@ function migrate(){
 
   DB.receivables.forEach(r=>{
     r.id = Number(r.id) || nextId();
-    r.name = String(r.name || '').trim() || 'Piutang';
+    r.name = String(r.name || '').trim() || 'Receivable';
     r.remaining = Number(r.remaining || 0);
     r.total = Number(r.total || r.remaining || 0);
     r.source = r.source || 'manual';
@@ -157,7 +157,7 @@ function amountFrom(input){ const n = Number(input.value || 0); return Number.is
 function rp(n){ return 'Rp ' + new Intl.NumberFormat('id-ID').format(n || 0); }
 
 function requirePositive(amount, message){
-  if(amount <= 0){ alert(message || 'Nominal harus lebih dari 0.'); return false; }
+  if(amount <= 0){ alert(message || 'Amount must be greater than 0.'); return false; }
   return true;
 }
 
@@ -211,16 +211,16 @@ function reserveSubscriptionCredit(sub, previousTotal = 0, previousCardId = null
 
   if(shouldReserve && !wasReserved){
     const card = DB.accounts.find(a=>a.id == newCardId);
-    if(!card) return alert('Kartu kredit subscription tidak ditemukan.');
-    if(!adjustCreditUsed(card, newTotal)) return alert('Tidak dapat menahan limit kartu kredit untuk subscription.');
+    if(!card) return alert('Subscription credit card not found.');
+    if(!adjustCreditUsed(card, newTotal)) return alert('Unable to reserve credit limit for this subscription.');
     return true;
   }
 
   if(wasReserved && shouldReserve){
     if(previousCardId !== newCardId){
       const card = DB.accounts.find(a=>a.id == newCardId);
-      if(!card) return alert('Kartu kredit subscription tidak ditemukan.');
-      if(!adjustCreditUsed(card, newTotal)) return alert('Tidak dapat menahan limit kartu kredit untuk subscription.');
+      if(!card) return alert('Subscription credit card not found.');
+      if(!adjustCreditUsed(card, newTotal)) return alert('Unable to reserve credit limit for this subscription.');
       const oldCard = DB.accounts.find(a=>a.id == previousCardId);
       if(oldCard) adjustCreditUsed(oldCard, -previousTotal);
       return true;
@@ -228,7 +228,7 @@ function reserveSubscriptionCredit(sub, previousTotal = 0, previousCardId = null
 
     const card = DB.accounts.find(a=>a.id == newCardId);
     const diff = newTotal - previousTotal;
-    if(diff !== 0 && !adjustCreditUsed(card, diff)) return alert('Tidak dapat menyesuaikan limit kartu kredit untuk subscription.');
+    if(diff !== 0 && !adjustCreditUsed(card, diff)) return alert('Unable to adjust reserved credit for this subscription.');
     return true;
   }
 
@@ -283,6 +283,67 @@ function selectedDebtCategory(){
   return {categoryId: category.id, category: category.name};
 }
 
+function getTransactionAccountOptions(type){
+  // Determine which accounts to show based on transaction type
+  if(type === 'expense'){
+    // Expenses can be paid from cash accounts or credit cards
+    const allAccounts = DB.accounts;
+    return '<option value="">Select Account</option>' + allAccounts.map(a=>'<option value="' + a.id + '">' + esc(a.name) + ' (' + esc(a.type) + ')</option>').join('');
+  }
+  // For all other types (income, transfer, debt_payment, receivable_payment), use cash accounts only
+  return '<option value="">Select Account</option>' + cashAccounts().map(a=>'<option value="' + a.id + '">' + esc(a.name) + '</option>').join('');
+}
+
+function populateTransactionDebtSelect(){
+  const select = document.getElementById('txDebtSelect');
+  select.innerHTML = '<option value="">Select Debt</option>' + DB.debts.map(d=>'<option value="' + d.id + '">' + esc(d.name) + ' (Rp ' + d.remaining.toLocaleString() + ')</option>').join('');
+}
+
+function populateTransactionReceivableSelect(){
+  const select = document.getElementById('txReceivableSelect');
+  select.innerHTML = '<option value="">Select Receivable</option>' + DB.receivables.map(r=>'<option value="' + r.id + '">' + esc(r.name) + ' (Rp ' + r.remaining.toLocaleString() + ')</option>').join('');
+}
+
+function syncTransactionReceivableMembers(){
+  const recvId = document.getElementById('txReceivableSelect').value;
+  const recv = DB.receivables.find(r=>r.id == recvId);
+  const memberArea = document.getElementById('txReceivableMemberArea');
+  const memberSelect = document.getElementById('txReceivableMember');
+  if(recv && recv.type === 'subscription_sharing'){
+    const sub = subscriptionById(recv.subscriptionId);
+    if(sub && sub.members){
+      memberSelect.innerHTML = '<option value="">Select Member</option>' + sub.members.map(m=>'<option value="' + m.id + '">' + esc(m.name) + '</option>').join('');
+      memberArea.classList.remove('hidden');
+      return;
+    }
+  }
+  memberArea.classList.add('hidden');
+}
+
+function syncAccountForm(){
+  const isCredit = accType.value === 'Credit Card';
+  cashAccountArea.classList.toggle('hidden', isCredit);
+  creditAccountArea.classList.toggle('hidden', !isCredit);
+}
+
+function syncDebtForm(){
+  debtCreditArea.classList.toggle('hidden', debtType.value !== 'credit_card');
+  const items = categoriesFor('expense');
+  debtCategory.innerHTML = '<option value="">Select Category</option>' + items.map(c=>'<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+}
+
+function resetAccountForm(){
+  editingAccountId = null;
+  accName.value = '';
+  accType.value = 'Bank';
+  accBalance.value = '';
+  accLimit.value = '';
+  accUsedLimit.value = '';
+  saveAccountBtn.textContent = 'Save Account';
+  cancelAccountBtn.classList.add('hidden');
+  syncAccountForm();
+}
+
 function resetTransactionForm(){
   editingTransactionId = null;
   txDate.value = today();
@@ -302,62 +363,13 @@ function resetTransactionForm(){
   syncTransactionForm();
 }
 
-function populateTransactionDebtSelect(){
-  const select = document.getElementById('txDebtSelect');
-  select.innerHTML = '<option value="">Pilih Hutang</option>' + DB.debts.map(d=>'<option value="' + d.id + '">' + esc(d.name) + ' (Rp ' + d.remaining.toLocaleString() + ')</option>').join('');
-}
-
-function populateTransactionReceivableSelect(){
-  const select = document.getElementById('txReceivableSelect');
-  select.innerHTML = '<option value="">Pilih Piutang</option>' + DB.receivables.map(r=>'<option value="' + r.id + '">' + esc(r.name) + ' (Rp ' + r.remaining.toLocaleString() + ')</option>').join('');
-}
-
-function syncTransactionReceivableMembers(){
-  const recvId = document.getElementById('txReceivableSelect').value;
-  const recv = DB.receivables.find(r=>r.id == recvId);
-  const memberArea = document.getElementById('txReceivableMemberArea');
-  const memberSelect = document.getElementById('txReceivableMember');
-  if(recv && recv.type === 'subscription_sharing'){
-    const sub = subscriptionById(recv.subscriptionId);
-    if(sub && sub.members){
-      memberSelect.innerHTML = '<option value="">Pilih Member</option>' + sub.members.map(m=>'<option value="' + m.id + '">' + esc(m.name) + '</option>').join('');
-      memberArea.classList.remove('hidden');
-      return;
-    }
-  }
-  memberArea.classList.add('hidden');
-}
-
-function syncAccountForm(){
-  const isCredit = accType.value === 'Credit Card';
-  cashAccountArea.classList.toggle('hidden', isCredit);
-  creditAccountArea.classList.toggle('hidden', !isCredit);
-}
-
-function syncDebtForm(){
-  debtCreditArea.classList.toggle('hidden', debtType.value !== 'credit_card');
-  const items = categoriesFor('expense');
-  debtCategory.innerHTML = '<option value="">Pilih Kategori</option>' + items.map(c=>'<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
-}
-
-function resetAccountForm(){
-  editingAccountId = null;
-  accName.value = '';
-  accType.value = 'Bank';
-  accBalance.value = '';
-  accLimit.value = '';
-  accUsedLimit.value = '';
-  saveAccountBtn.textContent = 'Save Account';
-  cancelAccountBtn.classList.add('hidden');
-  syncAccountForm();
-}
-
 function resetDebtForm(){
   editingDebtId = null;
   debtType.value = 'regular';
   debtCategory.value = '';
   debtCreditCard.value = '';
   debtBorrower.value = '';
+  document.getElementById('debtOwner').value = 'myself';
   debtName.value = '';
   debtTotal.value = '';
   debtTenor.value = '';
@@ -405,7 +417,7 @@ function syncReceivableSelection(){
   if(isSharing){
     const sub = subscriptionById(recv.subscriptionId);
     const members = sub ? sub.members : [];
-    recvMember.innerHTML = '<option value="">Pilih Member</option>' + members.map(m=>{
+    recvMember.innerHTML = '<option value="">Select Member</option>' + members.map(m=>{
       const remaining = Math.max(0, Number(m.shareAmount || 0) - Number(m.amountPaid || 0));
       return '<option value="' + m.id + '">' + esc(m.name) + ' - ' + rp(remaining) + '</option>';
     }).join('');
@@ -423,7 +435,6 @@ function resetSubscriptionForm(){
   subCycle.value = 'monthly';
   subRenewalDate.value = today();
   subTotal.value = '';
-  document.getElementById('subSharingCost').value = '';
   subAccount.value = '';
   subNote.value = '';
   subStatus.value = 'active';
@@ -431,7 +442,10 @@ function resetSubscriptionForm(){
   document.getElementById('subCreationMemberShare').value = '';
   document.getElementById('subCreationMemberNote').value = '';
   subCreationMembers = [];
-  subSharingCostManuallyEdited = false;
+  subMembersBaseline = '';
+  document.getElementById('subCreationMembersArea').classList.add('hidden');
+  document.getElementById('subMembersLauncherArea').classList.add('hidden');
+  document.getElementById('subMembersOutOfSync').classList.add('hidden');
   saveSubBtn.textContent = 'Save Subscription';
   cancelSubBtn.classList.add('hidden');
   syncSubscriptionCategory();
@@ -439,27 +453,42 @@ function resetSubscriptionForm(){
 
 function syncSubscriptionCategory(){
   const isSharing = subSubscriptionCategory.value === 'sharing';
+  const isCreateMode = !editingSubscriptionId;
+  const membersArea = document.getElementById('subCreationMembersArea');
+  const membersLauncher = document.getElementById('subMembersLauncherArea');
   subMaxMembersArea.classList.toggle('hidden', !isSharing);
-  document.getElementById('subCreationMembersArea').classList.toggle('hidden', !isSharing);
-  document.getElementById('subSharingCostArea').classList.toggle('hidden', !isSharing);
+  membersArea.classList.add('hidden');
+  membersLauncher.classList.add('hidden');
   if(!isSharing){
     subCreationMembers = [];
+    subMembersBaseline = '';
     renderSubCreationMembersList();
-    subSharingCostManuallyEdited = false;
-    document.getElementById('subSharingCost').value = '';
-  } else {
-    calculateSharingCost();
+    refreshSubMembersSyncState();
+    return;
   }
+
+  if(isCreateMode){
+    membersLauncher.classList.remove('hidden');
+  } else {
+    membersArea.classList.remove('hidden');
+    renderSubCreationMembersList();
+  }
+
+  refreshSubMembersSyncState();
 }
 
-function calculateSharingCost(){
-  if(subSharingCostManuallyEdited) return;
+function getCalculatedMemberShare(){
   const totalCost = amountFrom(subTotal);
   const maxMembers = Number(subMaxMembers.value || 0);
   if(totalCost > 0 && maxMembers > 0){
-    const sharingCost = Math.round(totalCost / maxMembers);
-    document.getElementById('subSharingCost').value = sharingCost;
+    return Math.round(totalCost / maxMembers);
   }
+  return 0;
+}
+
+function calculateMonthlyPayment(debt){
+  if(!debt.tenor || debt.tenor === 0) return null;
+  return Math.round(debt.total / debt.tenor);
 }
 
 function renderSubCreationMembersList(){
@@ -468,21 +497,52 @@ function renderSubCreationMembersList(){
     list.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;text-align:center;padding:12px">No members added yet</div>';
     return;
   }
-  list.innerHTML = subCreationMembers.map((m, idx) => {
-    let html = '<div style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px">';
-    html += '<div style="flex:1;min-width:0">';
-    html += '<div style="font-weight:500;color:var(--text)">' + esc(m.name) + '</div>';
-    html += '<div style="color:var(--muted-fg);font-size:12px">Rp ' + m.shareAmount.toLocaleString() + '</div>';
-    if(m.note) html += '<div style="color:var(--muted-fg);font-size:11px;margin-top:2px">' + esc(m.note) + '</div>';
-    html += '</div>';
-    html += '<button onclick="removeSubCreationMember(' + idx + ')" class="btn btn-danger" style="padding:4px 8px;font-size:12px">Remove</button>';
-    html += '</div>';
-    return html;
-  }).join('');
+  list.innerHTML = subCreationMembers.map((m, idx) => renderSubCreationMemberRow(m, idx)).join('');
+}
+
+function renderSubCreationMemberRow(member, idx){
+  let html = '<div style="display:flex;align-items:flex-start;gap:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px">';
+  html += '<div style="flex:1;min-width:0">';
+  html += '<input value="' + esc(member.name || '') + '" data-member-idx="' + idx + '" data-field="name" placeholder="Member name" style="width:100%;margin-bottom:6px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);font-size:12px">';
+  html += '<input type="number" value="' + Number(member.shareAmount || 0) + '" data-member-idx="' + idx + '" data-field="shareAmount" placeholder="Share amount" style="width:100%;margin-bottom:6px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);font-size:12px">';
+  html += '<input value="' + esc(member.note || '') + '" data-member-idx="' + idx + '" data-field="note" placeholder="Note (optional)" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);font-size:12px">';
+  html += '</div>';
+  html += '<button onclick="removeSubCreationMember(' + idx + ')" class="btn btn-danger" style="padding:4px 8px;font-size:12px">Remove</button>';
+  html += '</div>';
+  return html;
+}
+
+function updateSubCreationMember(idx, field, value){
+  const member = subCreationMembers[idx];
+  if(!member) return;
+  if(field === 'name'){
+    member.name = String(value || '');
+  }
+  if(field === 'shareAmount'){
+    const n = Number(value || 0);
+    member.shareAmount = Number.isFinite(n) ? Math.max(0, n) : 0;
+  }
+  if(field === 'note'){
+    member.note = String(value || '');
+  }
+}
+
+function handleSubCreationMembersListInput(event){
+  const target = event.target;
+  if(!target || !target.dataset) return;
+  const idx = Number(target.dataset.memberIdx);
+  const field = target.dataset.field;
+  if(!Number.isFinite(idx) || !field) return;
+  updateSubCreationMember(idx, field, target.value);
 }
 
 function removeSubCreationMember(idx){
   subCreationMembers.splice(idx, 1);
+  if(subCreationMembers.length === 0){
+    setSubMembersBaseline();
+  } else {
+    refreshSubMembersSyncState();
+  }
   renderSubCreationMembersList();
 }
 
@@ -511,12 +571,44 @@ function resetSubMemberForm(){
   subMemberNote.value = '';
 }
 
+function syncTransactionDebtAmount(){
+  const debtId = Number(document.getElementById('txDebtSelect').value);
+  if(!debtId) return;
+  const debt = DB.debts.find(d => d.id === debtId);
+  if(!debt) return;
+  const monthlyPayment = calculateMonthlyPayment(debt);
+  if(monthlyPayment){
+    txAmount.value = monthlyPayment;
+  }
+}
+
 function syncTransactionForm(){
   const type = txType.value;
   transferArea.classList.toggle('hidden', type !== 'transfer');
   document.getElementById('debtPaymentArea').classList.toggle('hidden', type !== 'debt_payment');
   document.getElementById('receivablePaymentArea').classList.toggle('hidden', type !== 'receivable_payment');
   txCategory.disabled = type === 'transfer' || type === 'debt_payment' || type === 'receivable_payment';
+  
+  // Update account options based on transaction type
+  const selectedFrom = txFrom.value;
+  txFrom.innerHTML = getTransactionAccountOptions(type);
+  txFrom.value = selectedFrom;
+  
+  // Update account labels based on transaction type
+  const fromLabel = document.getElementById('txFromLabel');
+  const toLabel = document.getElementById('txToLabel');
+  if(type === 'income'){
+    fromLabel.textContent = 'To';
+  } else if(type === 'receivable_payment'){
+    fromLabel.textContent = 'To';
+  } else {
+    fromLabel.textContent = 'From';
+  }
+  
+  if(type === 'transfer'){
+    if(toLabel) toLabel.textContent = 'To';
+  }
+  
   if(type === 'transfer'){
     txCategory.innerHTML = '<option value="">Transfer</option>';
     return;
@@ -529,7 +621,7 @@ function syncTransactionForm(){
 
   const current = txCategory.value;
   const items = categoriesFor(type);
-  txCategory.innerHTML = '<option value="">Pilih Kategori</option>' + items.map(c=>'<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  txCategory.innerHTML = '<option value="">Select Category</option>' + items.map(c=>'<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   if(items.some(c=>String(c.id) === current)) txCategory.value = current;
 }
 
@@ -546,7 +638,66 @@ document.querySelectorAll('.nav-link[data-page]').forEach(btn=>{
 
 let fabMenuOpen = false;
 let subCreationMembers = [];
-let subSharingCostManuallyEdited = false;
+let subMembersBaseline = '';
+
+function subMembersContextSignature(){
+  return amountFrom(subTotal) + '|' + Number(subMaxMembers.value || 0);
+}
+
+function setSubMembersBaseline(){
+  subMembersBaseline = subMembersContextSignature();
+  refreshSubMembersSyncState();
+}
+
+function refreshSubMembersSyncState(){
+  const notice = document.getElementById('subMembersOutOfSync');
+  if(!notice) return;
+  const isSharing = subSubscriptionCategory.value === 'sharing';
+  const hasMembers = subCreationMembers.length > 0;
+  const outOfSync = isSharing && hasMembers && subMembersBaseline && subMembersContextSignature() !== subMembersBaseline;
+  notice.classList.toggle('hidden', !outOfSync);
+}
+
+function handleSubMembersInputChange(){
+  const isSharing = subSubscriptionCategory.value === 'sharing';
+  if(!isSharing) return;
+  const memberArea = document.getElementById('subCreationMembersArea');
+  const shareInput = document.getElementById('subCreationMemberShare');
+  if(memberArea && !memberArea.classList.contains('hidden')){
+    const calculated = getCalculatedMemberShare();
+    if(calculated > 0 && !shareInput.value){
+      shareInput.value = calculated;
+    }
+  }
+  refreshSubMembersSyncState();
+}
+
+function openSubCreationMemberForm(){
+  const isSharing = subSubscriptionCategory.value === 'sharing';
+  if(!isSharing || editingSubscriptionId) return;
+  const totalCost = amountFrom(subTotal);
+  const maxMembers = Number(subMaxMembers.value || 0);
+  if(totalCost <= 0) return alert('Enter Total Cost first.');
+  if(maxMembers <= 0) return alert('Enter Maximum Number of Members first.');
+
+  const launcher = document.getElementById('subMembersLauncherArea');
+  const memberArea = document.getElementById('subCreationMembersArea');
+  launcher.classList.add('hidden');
+  memberArea.classList.remove('hidden');
+
+  const calculated = getCalculatedMemberShare();
+  if(calculated > 0){
+    document.getElementById('subCreationMemberShare').value = calculated;
+  }
+
+  if(!subMembersBaseline){
+    setSubMembersBaseline();
+  } else {
+    refreshSubMembersSyncState();
+  }
+
+  renderSubCreationMembersList();
+}
 
 function toggleFabMenu(){
   const menu = document.getElementById('fabMenu');
@@ -598,7 +749,7 @@ document.querySelectorAll('.fab-menu-item').forEach(item=>{
         openModal('receivableModal');
         break;
       case 'subscription':
-        activatePage('dashboard');
+        activatePage('subscriptions');
         resetSubscriptionForm();
         openModal('subscriptionModal');
         break;
@@ -613,29 +764,51 @@ document.querySelectorAll('.fab-menu-item').forEach(item=>{
 
 document.getElementById('addMemberToCreationBtn')?.addEventListener('click', ()=>{
   const name = document.getElementById('subCreationMemberName').value.trim();
-  const shareAmount = amountFrom(document.getElementById('subCreationMemberShare'));
+  let shareAmount = amountFrom(document.getElementById('subCreationMemberShare'));
   const note = document.getElementById('subCreationMemberNote').value.trim();
   
-  if(!name) return alert('Isi nama member.');
+  if(!name) return alert('Enter a member name.');
+  
+  // If no share amount entered, use calculated value
+  if(shareAmount === 0){
+    shareAmount = getCalculatedMemberShare();
+    if(shareAmount === 0) return alert('Set Total Cost and Maximum Members first, or enter a Share Amount.');
+  }
+  
   if(!requirePositive(shareAmount, 'Nilai share harus lebih dari 0.')) return;
   
   subCreationMembers.push({name, shareAmount, note});
   document.getElementById('subCreationMemberName').value = '';
   document.getElementById('subCreationMemberShare').value = '';
   document.getElementById('subCreationMemberNote').value = '';
+  if(!subMembersBaseline){
+    setSubMembersBaseline();
+  }
+  renderSubCreationMembersList();
+  refreshSubMembersSyncState();
+  // Pre-fill the next member's share with calculated value
+  document.getElementById('subCreationMemberShare').value = getCalculatedMemberShare();
+});
+
+document.getElementById('subShowMemberFormBtn')?.addEventListener('click', openSubCreationMemberForm);
+
+document.getElementById('subRecalculateMembersBtn')?.addEventListener('click', ()=>{
+  if(subCreationMembers.length === 0) return;
+  const recalculated = getCalculatedMemberShare();
+  if(recalculated <= 0) return alert('Enter Total Cost and Maximum Number of Members first.');
+  subCreationMembers = subCreationMembers.map(m => ({...m, shareAmount: recalculated}));
+  document.getElementById('subCreationMemberShare').value = recalculated;
+  setSubMembersBaseline();
   renderSubCreationMembersList();
 });
 
+document.getElementById('subCreationMembersList')?.addEventListener('input', handleSubCreationMembersListInput);
+
 txType.onchange = syncTransactionForm;
 document.getElementById('txReceivableSelect').onchange = syncTransactionReceivableMembers;
+document.getElementById('txDebtSelect').onchange = syncTransactionDebtAmount;
 accType.onchange = syncAccountForm;
 debtType.onchange = syncDebtForm;
-
-subTotal.addEventListener('input', calculateSharingCost);
-subMaxMembers.addEventListener('input', calculateSharingCost);
-document.getElementById('subSharingCost').addEventListener('input', ()=>{
-  subSharingCostManuallyEdited = true;
-});
 
 saveAccountBtn.onclick = ()=>{
   const name = accName.value.trim();
@@ -643,27 +816,27 @@ saveAccountBtn.onclick = ()=>{
   const balance = amountFrom(accBalance);
   const creditLimit = amountFrom(accLimit);
   const usedLimit = amountFrom(accUsedLimit);
-  if(!name) return alert('Isi nama account.');
+  if(!name) return alert('Enter an account name.');
   if(editingAccountId){
     const account = DB.accounts.find(a=>a.id == editingAccountId);
-    if(!account) return alert('Account tidak ditemukan.');
-    if(account.type !== type) return alert('Tidak bisa mengubah jenis account yang sudah dipakai.');
+    if(!account) return alert('Account not found.');
+    if(account.type !== type) return alert('You cannot change the account type after it has been used.');
     const hasTransactionRefs = DB.transactions.some(t => t.accountId == account.id || t.fromId == account.id || t.toId == account.id || t.creditCardId == account.id);
     const hasDebtRefs = DB.debts.some(d => d.creditCardId == account.id);
     if(type === 'Credit Card'){
-      if(!requirePositive(creditLimit, 'Limit kartu kredit harus lebih dari 0.')) return;
-      if(usedLimit < 0) return alert('Used limit tidak boleh negatif.');
-      if(usedLimit > creditLimit) return alert('Used limit tidak boleh melebihi limit kartu.');
+      if(!requirePositive(creditLimit, 'Credit Limit must be greater than 0.')) return;
+      if(usedLimit < 0) return alert('Used Credit cannot be negative.');
+      if(usedLimit > creditLimit) return alert('Used Credit cannot exceed the Credit Limit.');
       if(hasTransactionRefs || hasDebtRefs){
-        if(account.creditLimit !== creditLimit || account.usedLimit !== usedLimit) return alert('Tidak dapat mengubah limit account setelah digunakan di transaksi atau hutang.');
+        if(account.creditLimit !== creditLimit || account.usedLimit !== usedLimit) return alert('You cannot change the account limit after it has been used in transactions or debts.');
       }
       account.name = name;
       account.creditLimit = creditLimit;
       account.usedLimit = usedLimit;
     } else {
-      if(balance < 0) return alert('Saldo tidak boleh negatif.');
+      if(balance < 0) return alert('Balance cannot be negative.');
       if(hasTransactionRefs || hasDebtRefs){
-        if(account.balance !== balance) return alert('Tidak dapat mengubah saldo account setelah digunakan di transaksi atau hutang.');
+        if(account.balance !== balance) return alert('You cannot change the account balance after it has been used in transactions or debts.');
       }
       account.name = name;
       account.balance = balance;
@@ -671,14 +844,14 @@ saveAccountBtn.onclick = ()=>{
     resetAccountForm();
   } else {
     if(type === 'Credit Card'){
-      if(!requirePositive(creditLimit, 'Limit kartu kredit harus lebih dari 0.')) return;
-      if(usedLimit < 0) return alert('Used limit tidak boleh negatif.');
-      if(usedLimit > creditLimit) return alert('Used limit tidak boleh melebihi limit kartu.');
+      if(!requirePositive(creditLimit, 'Credit Limit must be greater than 0.')) return;
+      if(usedLimit < 0) return alert('Used Credit cannot be negative.');
+      if(usedLimit > creditLimit) return alert('Used Credit cannot exceed the Credit Limit.');
       DB.accounts.push({id: nextId(), name, type, balance: 0, creditLimit, usedLimit});
       accLimit.value = '';
       accUsedLimit.value = '';
     } else {
-      if(balance < 0) return alert('Saldo awal tidak boleh negatif.');
+      if(balance < 0) return alert('Opening Balance cannot be negative.');
       DB.accounts.push({id: nextId(), name, type, balance, creditLimit: 0, usedLimit: 0});
       accBalance.value = '';
     }
@@ -700,10 +873,10 @@ saveTxBtn.onclick = ()=>{
   if(type === 'debt_payment'){
     const debt = DB.debts.find(d=>d.id == document.getElementById('txDebtSelect').value);
     const account = DB.accounts.find(a=>a.id == txFrom.value);
-    if(!debt || !account) return alert('Lengkapi data.');
-    if(account.type === 'Credit Card') return alert('Pembayaran hutang harus dari account kas/bank, bukan kartu kredit.');
-    if(amount > debt.remaining) return alert('Pembayaran melebihi sisa hutang.');
-    if(!adjustAccountBalance(account, -amount)) return alert('Saldo tidak cukup.');
+    if(!debt || !account) return alert('Complete all required fields.');
+    if(account.type === 'Credit Card') return alert('Debt payments must come from a cash or bank account, not a credit card.');
+    if(amount > debt.remaining) return alert('Payment exceeds the remaining debt.');
+    if(!adjustAccountBalance(account, -amount)) return alert('Insufficient balance.');
     
     debt.remaining = Math.max(0, debt.remaining - amount);
     if(debt.type === 'credit_card' && debt.creditCardId){
@@ -712,7 +885,7 @@ saveTxBtn.onclick = ()=>{
     }
     
     const txId = nextId();
-    DB.transactions.push({id: txId, date, type:'debt_payment', category: debt.name, amount, accountId: account.id, debtId: debt.id, creditCardId: debt.creditCardId || null, note: txNote.value.trim() || 'Bayar hutang'});
+    DB.transactions.push({id: txId, date, type:'debt_payment', category: debt.name, amount, accountId: account.id, debtId: debt.id, creditCardId: debt.creditCardId || null, note: txNote.value.trim() || 'Pay debt'});
     debt.paymentHistory = debt.paymentHistory || [];
     debt.paymentHistory.push({id: nextId(), date, amount, accountId: account.id, note: txNote.value.trim(), transactionId: txId});
     
@@ -726,16 +899,16 @@ saveTxBtn.onclick = ()=>{
   if(type === 'receivable_payment'){
     const recv = DB.receivables.find(r=>r.id == document.getElementById('txReceivableSelect').value);
     const account = DB.accounts.find(a=>a.id == txFrom.value);
-    if(!recv || !account) return alert('Lengkapi data.');
-    if(account.type === 'Credit Card') return alert('Penerimaan piutang harus masuk account kas/bank, bukan kartu kredit.');
-    if(amount > recv.remaining) return alert('Pembayaran melebihi sisa piutang.');
+    if(!recv || !account) return alert('Complete all required fields.');
+    if(account.type === 'Credit Card') return alert('Receivable collections must go into a cash or bank account, not a credit card.');
+    if(amount > recv.remaining) return alert('Payment exceeds the remaining receivable.');
     
     let memberId = null;
     if(recv.type === 'subscription_sharing'){
       const member = subscriptionById(recv.subscriptionId)?.members.find(m=>m.id == document.getElementById('txReceivableMember').value);
-      if(!member) return alert('Pilih member subscription.');
+      if(!member) return alert('Select a subscription member.');
       const memberRemaining = Math.max(0, Number(member.shareAmount || 0) - Number(member.amountPaid || 0));
-      if(amount > memberRemaining) return alert('Pembayaran melebihi sisa member.');
+      if(amount > memberRemaining) return alert('Payment exceeds the member\'s remaining share.');
       member.amountPaid = Number(member.amountPaid || 0) + amount;
       member.paid = member.amountPaid >= Number(member.shareAmount || 0);
       if(member.paid){ member.paymentDate = date; }
@@ -756,7 +929,7 @@ saveTxBtn.onclick = ()=>{
       subscriptionId: recv.subscriptionId || null,
       memberId,
       debtId: recv.debtId || null,
-      note: txNote.value.trim() || 'Terima piutang'
+      note: txNote.value.trim() || 'Collect receivable'
     });
     recv.collectionHistory = recv.collectionHistory || [];
     recv.collectionHistory.push({
@@ -790,7 +963,7 @@ saveTxBtn.onclick = ()=>{
 
   if(editingTransactionId){
     const tx = DB.transactions.find(t=>t.id == editingTransactionId);
-    if(!tx) return alert('Transaksi tidak ditemukan.');
+    if(!tx) return alert('Transaction not found.');
     if(!reverseTransaction(tx)) return;
     tx.date = date;
     tx.type = type;
@@ -798,10 +971,10 @@ saveTxBtn.onclick = ()=>{
     if(type === 'transfer'){
       const from = DB.accounts.find(a=>a.id == txFrom.value);
       const to = DB.accounts.find(a=>a.id == txTo.value);
-      if(!from || !to) return alert('Pilih account.');
-      if(from.id === to.id) return alert('Account harus berbeda.');
-      if(from.type === 'Credit Card' || to.type === 'Credit Card') return alert('Transfer hanya untuk account kas/bank. Pakai Debts untuk transaksi kartu kredit.');
-      if(!adjustAccountBalance(from, -amount)) return alert('Saldo tidak cukup.');
+      if(!from || !to) return alert('Select an account.');
+      if(from.id === to.id) return alert('Accounts must be different.');
+      if(from.type === 'Credit Card' || to.type === 'Credit Card') return alert('Transfers are only supported between cash or bank accounts. Use Debts for credit card transactions.');
+      if(!adjustAccountBalance(from, -amount)) return alert('Insufficient balance.');
       adjustAccountBalance(to, amount);
       tx.category = 'Transfer';
       tx.categoryId = 0;
@@ -815,11 +988,11 @@ saveTxBtn.onclick = ()=>{
     } else {
       const account = DB.accounts.find(a=>a.id == txFrom.value);
       const category = selectedCategory();
-      if(!account) return alert('Pilih account.');
-      if(account.type === 'Credit Card') return alert('Income/expense kas tidak memakai account kartu kredit. Pakai Debts untuk cicilan kartu kredit.');
-      if(!category) return alert('Pilih kategori.');
+      if(!account) return alert('Select an account.');
+      if(account.type === 'Credit Card') return alert('Cash income and expense entries cannot use a credit card account. Use Debts for credit card installments.');
+      if(!category) return alert('Select a category.');
       const delta = type === 'income' ? amount : -amount;
-      if(!adjustAccountBalance(account, delta)) return alert('Saldo tidak cukup.');
+      if(!adjustAccountBalance(account, delta)) return alert('Insufficient balance.');
       tx.category = category.category;
       tx.categoryId = category.categoryId;
       tx.amount = amount;
@@ -839,20 +1012,20 @@ saveTxBtn.onclick = ()=>{
   if(type === 'transfer'){
     const from = DB.accounts.find(a=>a.id == txFrom.value);
     const to = DB.accounts.find(a=>a.id == txTo.value);
-    if(!from || !to) return alert('Pilih account.');
-    if(from.id === to.id) return alert('Account harus berbeda.');
-    if(from.type === 'Credit Card' || to.type === 'Credit Card') return alert('Transfer hanya untuk account kas/bank. Pakai Debts untuk transaksi kartu kredit.');
-    if(!adjustAccountBalance(from, -amount)) return alert('Saldo tidak cukup.');
+    if(!from || !to) return alert('Select an account.');
+    if(from.id === to.id) return alert('Accounts must be different.');
+    if(from.type === 'Credit Card' || to.type === 'Credit Card') return alert('Transfers are only supported between cash or bank accounts. Use Debts for credit card transactions.');
+    if(!adjustAccountBalance(from, -amount)) return alert('Insufficient balance.');
     adjustAccountBalance(to, amount);
     DB.transactions.push({id: nextId(), date, type:'transfer', category:'Transfer', amount, fromId: from.id, toId: to.id, note: txNote.value.trim()});
   } else {
     const account = DB.accounts.find(a=>a.id == txFrom.value);
     const category = selectedCategory();
-    if(!account) return alert('Pilih account.');
-    if(account.type === 'Credit Card') return alert('Income/expense kas tidak memakai account kartu kredit. Pakai Debts untuk cicilan kartu kredit.');
-    if(!category) return alert('Pilih kategori.');
+    if(!account) return alert('Select an account.');
+    if(account.type === 'Credit Card') return alert('Cash income and expense entries cannot use a credit card account. Use Debts for credit card installments.');
+    if(!category) return alert('Select a category.');
     const delta = type === 'income' ? amount : -amount;
-    if(!adjustAccountBalance(account, delta)) return alert('Saldo tidak cukup.');
+    if(!adjustAccountBalance(account, delta)) return alert('Insufficient balance.');
     DB.transactions.push({id: nextId(), date, type, category: category.category, categoryId: category.categoryId, amount, accountId: account.id, note: txNote.value.trim()});
   }
 
@@ -865,24 +1038,25 @@ saveDebtBtn.onclick = ()=>{
   const type = debtType.value;
   const creditCardId = type === 'credit_card' ? Number(debtCreditCard.value || 0) || null : null;
   const borrower = debtBorrower.value.trim();
+  const owner = debtType.value === 'credit_card' ? (document.getElementById('debtOwner')?.value || 'myself') : null;
   const name = debtName.value.trim();
   const total = amountFrom(debtTotal);
   const tenor = Number(debtTenor.value || 0);
   const dueDay = Number(debtDueDay.value || 0);
   const debtCategorySelected = selectedDebtCategory();
-  if(!name) return alert('Isi nama hutang.');
-  if(!requirePositive(total, 'Total hutang harus lebih dari 0.')) return;
-  if(type === 'credit_card' && !creditCardId) return alert('Pilih kartu kredit.');
-  if(!debtCategorySelected) return alert('Pilih kategori.');
+    if(!name) return alert('Enter a debt name.');
+    if(!requirePositive(total, 'Total Debt must be greater than 0.')) return;
+    if(type === 'credit_card' && !creditCardId) return alert('Select a credit card.');
+    if(!debtCategorySelected) return alert('Select a category.');
 
   if(editingDebtId){
     const debt = DB.debts.find(d=>d.id == editingDebtId);
-    if(!debt) return alert('Hutang tidak ditemukan.');
-    if(debt.remaining !== debt.total && total !== debt.total) return alert('Tidak dapat mengubah total hutang setelah pembayaran dimulai.');
+    if(!debt) return alert('Debt not found.');
+    if(debt.remaining !== debt.total && total !== debt.total) return alert('You cannot change the Total Debt after payments have started.');
     if(debt.type === 'credit_card' && debt.creditCardId){
       const card = DB.accounts.find(a=>a.id == debt.creditCardId);
       const diff = total - debt.total;
-      if(diff !== 0 && card && !adjustCreditUsed(card, diff)) return alert('Tidak dapat menyesuaikan limit kartu kredit.');
+      if(diff !== 0 && card && !adjustCreditUsed(card, diff)) return alert('Unable to adjust the reserved credit.');
     }
     debt.type = type;
     debt.name = name;
@@ -896,7 +1070,8 @@ saveDebtBtn.onclick = ()=>{
     debt.total = total;
     debt.creditCardId = creditCardId;
     debt.borrower = borrower;
-    if(debt.type === 'credit_card' && borrower && !debt.receivableId){
+    debt.owner = owner;
+    if(debt.type === 'credit_card' && borrower && owner === 'another' && !debt.receivableId){
       const receivable = {id: nextId(), name: borrower + ' - ' + name, total, remaining: total, source: 'credit_card_borrower', debtId: debt.id};
       DB.receivables.push(receivable);
       debt.receivableId = receivable.id;
@@ -904,9 +1079,15 @@ saveDebtBtn.onclick = ()=>{
     if(debt.type === 'credit_card' && debt.receivableId){
       const receivable = DB.receivables.find(r=>r.id == debt.receivableId);
       if(receivable){
-        receivable.name = borrower ? borrower + ' - ' + name : receivable.name;
-        receivable.total = total;
-        receivable.remaining = total;
+        if(borrower && owner === 'another'){
+          receivable.name = borrower + ' - ' + name;
+          receivable.total = total;
+          receivable.remaining = total;
+        } else {
+          // Delete receivable if owner changed to 'myself' or borrower cleared
+          DB.receivables = DB.receivables.filter(r => r.id !== debt.receivableId);
+          debt.receivableId = null;
+        }
       }
     }
     if(type !== 'credit_card'){
@@ -918,8 +1099,13 @@ saveDebtBtn.onclick = ()=>{
     return;
   }
 
-  const debt = {id: nextId(), name, type, total, remaining: total, creditCardId, borrower, receivableId: null, tenor, dueDay, categoryId: debtCategorySelected.categoryId, category: debtCategorySelected.category};
-  if(type === 'credit_card' && borrower){
+  const debt = {id: nextId(), name, type, total, remaining: total, creditCardId, borrower, owner, receivableId: null, tenor, dueDay, categoryId: debtCategorySelected.categoryId, category: debtCategorySelected.category};
+  if(type === 'credit_card' && creditCardId){
+    const card = DB.accounts.find(a=>a.id == creditCardId);
+    if(!card) return alert('Credit card not found.');
+    if(!adjustCreditUsed(card, total)) return alert('Unable to reserve the credit limit.');
+  }
+  if(type === 'credit_card' && borrower && owner === 'another'){
     const receivable = {id: nextId(), name: borrower + ' - ' + name, total, remaining: total, source: 'credit_card_borrower', debtId: debt.id};
     DB.receivables.push(receivable);
     debt.receivableId = receivable.id;
@@ -940,11 +1126,11 @@ payDebtBtn.onclick = ()=>{
   const debt = DB.debts.find(d=>d.id == debtSelect.value);
   const amount = amountFrom(debtAmount);
   const date = debtDate.value || today();
-  if(!account || !debt) return alert('Lengkapi data.');
-  if(account.type === 'Credit Card') return alert('Pembayaran hutang harus dari account kas/bank, bukan kartu kredit.');
+  if(!account || !debt) return alert('Complete all required fields.');
+  if(account.type === 'Credit Card') return alert('Debt payments must come from a cash or bank account, not a credit card.');
   if(!requirePositive(amount)) return;
-  if(amount > debt.remaining) return alert('Pembayaran melebihi sisa hutang.');
-  if(!adjustAccountBalance(account, -amount)) return alert('Saldo tidak cukup.');
+  if(amount > debt.remaining) return alert('Payment exceeds the remaining debt.');
+  if(!adjustAccountBalance(account, -amount)) return alert('Insufficient balance.');
 
   debt.remaining = Math.max(0, debt.remaining - amount);
   if(debt.type === 'credit_card' && debt.creditCardId){
@@ -953,7 +1139,7 @@ payDebtBtn.onclick = ()=>{
   }
 
   const txId = nextId();
-  DB.transactions.push({id: txId, date, type:'debt_payment', category: debt.name, amount, accountId: account.id, debtId: debt.id, creditCardId: debt.creditCardId || null, note: debtNote.value.trim() || 'Bayar hutang'});
+  DB.transactions.push({id: txId, date, type:'debt_payment', category: debt.name, amount, accountId: account.id, debtId: debt.id, creditCardId: debt.creditCardId || null, note: debtNote.value.trim() || 'Pay debt'});
   debt.paymentHistory = debt.paymentHistory || [];
   debt.paymentHistory.push({id: nextId(), date, amount, accountId: account.id, note: debtNote.value.trim(), transactionId: txId});
   debtAmount.value='';
@@ -969,19 +1155,19 @@ saveRecvBtn.onclick = ()=>{
   const subscription = subscriptionById(recvSubscription.value);
   const name = recvName.value.trim();
   const total = amountFrom(recvTotal);
-  if(type === 'subscription_sharing' && !subscription) return alert('Pilih subscription.');
-  if(type === 'regular' && !name) return alert('Isi nama piutang.');
-  if(!requirePositive(total, 'Total piutang harus lebih dari 0.')) return;
+  if(type === 'subscription_sharing' && !subscription) return alert('Select a subscription.');
+  if(type === 'regular' && !name) return alert('Enter a receivable name.');
+  if(!requirePositive(total, 'Total Receivable must be greater than 0.')) return;
 
   if(type === 'subscription_sharing'){
     const defaultTotal = subscription.totalCost || subscription.members.reduce((sum,m)=>sum + Number(m.shareAmount || 0),0);
-    if(total !== defaultTotal) return alert('Total harus sama dengan total biaya subscription.');
+    if(total !== defaultTotal) return alert('Total must match the subscription\'s total cost.');
   }
 
   if(editingReceivableId){
     const recv = DB.receivables.find(r=>r.id == editingReceivableId);
-    if(!recv) return alert('Piutang tidak ditemukan.');
-    if(recv.remaining !== recv.total && total !== recv.total) return alert('Tidak dapat mengubah total piutang setelah pembayaran dimulai.');
+    if(!recv) return alert('Receivable not found.');
+    if(recv.remaining !== recv.total && total !== recv.total) return alert('You cannot change the Total Receivable after payments have started.');
     recv.type = type;
     recv.subscriptionId = type === 'subscription_sharing' ? subscription.id : null;
     recv.name = type === 'subscription_sharing' ? subscription.name : name;
@@ -1020,17 +1206,17 @@ receiveBtn.onclick = ()=>{
   const recv = DB.receivables.find(r=>r.id == recvSelect.value);
   const amount = amountFrom(recvAmount);
   const date = recvDate.value || today();
-  if(!account || !recv) return alert('Lengkapi data.');
-  if(account.type === 'Credit Card') return alert('Penerimaan piutang harus masuk account kas/bank, bukan kartu kredit.');
+  if(!account || !recv) return alert('Complete all required fields.');
+  if(account.type === 'Credit Card') return alert('Receivable collections must go into a cash or bank account, not a credit card.');
   if(!requirePositive(amount)) return;
-  if(amount > recv.remaining) return alert('Pembayaran melebihi sisa piutang.');
+  if(amount > recv.remaining) return alert('Payment exceeds the remaining receivable.');
 
   let memberId = null;
   if(recv.type === 'subscription_sharing'){
     const member = subscriptionById(recv.subscriptionId)?.members.find(m=>m.id == recvMember.value);
-    if(!member) return alert('Pilih member subscription.');
+    if(!member) return alert('Select a subscription member.');
     const memberRemaining = Math.max(0, Number(member.shareAmount || 0) - Number(member.amountPaid || 0));
-    if(amount > memberRemaining) return alert('Pembayaran melebihi sisa member.');
+    if(amount > memberRemaining) return alert('Payment exceeds the member\'s remaining share.');
     member.amountPaid = Number(member.amountPaid || 0) + amount;
     member.paid = member.amountPaid >= Number(member.shareAmount || 0);
     if(member.paid){ member.paymentDate = date; }
@@ -1051,7 +1237,7 @@ receiveBtn.onclick = ()=>{
     subscriptionId: recv.subscriptionId || null,
     memberId,
     debtId: recv.debtId || null,
-    note: recvNote.value.trim() || 'Terima piutang'
+    note: recvNote.value.trim() || 'Collect receivable'
   });
   recv.collectionHistory = recv.collectionHistory || [];
   recv.collectionHistory.push({
@@ -1090,20 +1276,31 @@ saveSubBtn.onclick = ()=>{
   const category = categoryById(subCategory.value);
   const subscriptionCategory = subSubscriptionCategory.value === 'sharing' ? 'sharing' : 'personal';
   const maxMembers = subscriptionCategory === 'sharing' ? Number(subMaxMembers.value || 0) : null;
-  const sharingCost = subscriptionCategory === 'sharing' ? Number(document.getElementById('subSharingCost').value || 0) : null;
+  const sharingCost = null;
   const cycle = subCycle.value;
   const renewalDate = subRenewalDate.value || today();
   const totalCost = amountFrom(subTotal);
   const account = DB.accounts.find(a=>a.id == subAccount.value) || null;
   const status = ['active','paused','canceled'].includes(subStatus.value) ? subStatus.value : 'active';
-  if(!name) return alert('Isi nama subscription.');
-  if(!category) return alert('Pilih kategori.');
-  if(!requirePositive(totalCost, 'Total biaya harus lebih dari 0.')) return;
-  if(subscriptionCategory === 'sharing' && (!maxMembers || maxMembers < 1)) return alert('Isi jumlah maksimal member untuk sharing subscription.');
+  if(!name) return alert('Enter a subscription name.');
+  if(!category) return alert('Select a category.');
+  if(!requirePositive(totalCost, 'Total Cost must be greater than 0.')) return;
+  if(subscriptionCategory === 'sharing' && (!maxMembers || maxMembers < 1)) return alert('Enter the maximum number of members for a shared subscription.');
 
   if(editingSubscriptionId){
     const sub = DB.subscriptions.find(s=>s.id == editingSubscriptionId);
-    if(!sub) return alert('Subscription tidak ditemukan.');
+    if(!sub) return alert('Subscription not found.');
+    const updatedMembers = subscriptionCategory === 'sharing'
+      ? subCreationMembers.map(m => ({
+          id: Number(m.id) || nextId(),
+          name: String(m.name || '').trim() || 'Member',
+          shareAmount: Number(m.shareAmount || 0),
+          paid: Boolean(m.paid || false),
+          paymentDate: m.paymentDate || '',
+          note: String(m.note || '').trim(),
+          amountPaid: Number(m.amountPaid || 0)
+        }))
+      : [];
     const previousTotal = Number(sub.totalCost || 0);
     const previousCardId = sub.creditCardId;
     const previousStatus = sub.status;
@@ -1122,6 +1319,7 @@ saveSubBtn.onclick = ()=>{
       accountId: account?.id || null,
       note: subNote.value.trim(),
       status,
+      members: updatedMembers,
       creditCardId: updatedCardId
     };
     if(!reserveSubscriptionCredit(updated, previousTotal, previousCardId, previousStatus)) return;
@@ -1163,8 +1361,8 @@ saveSubBtn.onclick = ()=>{
 saveCategoryBtn.onclick = ()=>{
   const name = categoryName.value.trim();
   const type = categoryType.value;
-  if(!name) return alert('Isi nama kategori.');
-  if(DB.categories.some(c=>c.name.toLowerCase() === name.toLowerCase())) return alert('Kategori sudah ada.');
+  if(!name) return alert('Enter a category name.');
+  if(DB.categories.some(c=>c.name.toLowerCase() === name.toLowerCase())) return alert('Category already exists.');
   DB.categories.push({id: nextId(), name, type});
   categoryName.value = '';
   categoryType.value = 'all';
@@ -1172,7 +1370,7 @@ saveCategoryBtn.onclick = ()=>{
 };
 
 seedBtn.onclick = ()=>{
-  if(DB.accounts.length || DB.debts.length || DB.receivables.length || DB.transactions.length || DB.subscriptions.length) return alert('Data sudah ada.');
+  if(DB.accounts.length || DB.debts.length || DB.receivables.length || DB.transactions.length || DB.subscriptions.length) return alert('Data already exists.');
   DB.accounts.push(
     {id:1,name:'BCA',type:'Bank',balance:5000000,creditLimit:0,usedLimit:0},
     {id:2,name:'Jenius',type:'Bank',balance:1000000,creditLimit:0,usedLimit:0},
@@ -1214,22 +1412,22 @@ importFile.onchange = async ()=>{
   try{
     const backup = JSON.parse(await file.text());
     if(!CORE_BACKUP_KEYS.every(key=>Array.isArray(backup[key]))) throw new Error('Invalid backup');
-    if(!confirm('Import backup akan mengganti data saat ini. Lanjutkan?')) return;
+    if(!confirm('Importing a backup will replace the current data. Continue?')) return;
     CORE_BACKUP_KEYS.forEach(key=>DB[key] = backup[key]);
     DB.categories = Array.isArray(backup.categories) ? backup.categories : [];
     DB.subscriptions = Array.isArray(backup.subscriptions) ? backup.subscriptions : [];
     migrate();
     render();
-    alert('Backup berhasil diimport.');
+    alert('Backup imported successfully.');
   }catch{
-    alert('File backup tidak valid.');
+    alert('Backup file is invalid.');
   }finally{
     importFile.value = '';
   }
 };
 
 deleteAllBtn.onclick = ()=>{
-  if(!confirm('Hapus semua data secara permanen? Tindakan ini tidak bisa dibatalkan.')) return;
+  if(!confirm('Delete all data permanently? This action cannot be undone.')) return;
   DB.accounts = [];
   DB.transactions = [];
   DB.debts = [];
@@ -1237,16 +1435,16 @@ deleteAllBtn.onclick = ()=>{
   DB.categories = [];
   DB.subscriptions = [];
   save();
-  alert('Semua data telah dihapus.');
+  alert('All data has been deleted.');
 };
 
 function deleteDebt(id){
   const debt = DB.debts.find(d=>d.id == id);
   if(!debt) return;
-  if(debt.remaining !== debt.total) return alert('Hutang yang sudah punya pembayaran tidak bisa dihapus.');
+  if(debt.remaining !== debt.total) return alert('A debt that already has payments cannot be deleted.');
   const linkedReceivable = debt.receivableId ? DB.receivables.find(r=>r.id == debt.receivableId) : null;
-  if(linkedReceivable && linkedReceivable.remaining !== linkedReceivable.total) return alert('Hutang dengan piutang yang sudah dibayar sebagian tidak bisa dihapus.');
-  if(confirm('Hapus hutang ini?')){
+  if(linkedReceivable && linkedReceivable.remaining !== linkedReceivable.total) return alert('A debt linked to a partially collected receivable cannot be deleted.');
+  if(confirm('Delete this debt?')){
     if(debt.type === 'credit_card' && debt.creditCardId){
       const card = DB.accounts.find(a=>a.id == debt.creditCardId);
       if(card) adjustCreditUsed(card, -debt.total);
@@ -1260,8 +1458,8 @@ function deleteDebt(id){
 function deleteReceivable(id){
   const recv = DB.receivables.find(r=>r.id == id);
   if(!recv) return;
-  if(recv.remaining !== recv.total) return alert('Piutang yang sudah punya pembayaran tidak bisa dihapus.');
-  if(confirm('Hapus piutang ini?')){
+  if(recv.remaining !== recv.total) return alert('A receivable that already has payments cannot be deleted.');
+  if(confirm('Delete this receivable?')){
     if(recv.type === 'subscription_sharing' && recv.subscriptionId){
       const sub = subscriptionById(recv.subscriptionId);
       if(sub && sub.receivableId === recv.id){ sub.receivableId = null; }
@@ -1275,47 +1473,47 @@ function reverseTransaction(tx){
   if(tx.type === 'transfer'){
     const from = DB.accounts.find(a=>a.id == tx.fromId);
     const to = DB.accounts.find(a=>a.id == tx.toId);
-    if(!from || !to) return alert('Akun transfer tidak ditemukan.');
-    if(Number(to.balance || 0) < tx.amount) return alert('Tidak dapat membalikkan transfer karena saldo tujuan tidak cukup.');
-    if(!adjustAccountBalance(from, tx.amount)) return alert('Tidak dapat membalikkan transfer karena saldo sumber tidak valid.');
+    if(!from || !to) return alert('Transfer account not found.');
+    if(Number(to.balance || 0) < tx.amount) return alert('Unable to reverse the transfer because the destination balance is insufficient.');
+    if(!adjustAccountBalance(from, tx.amount)) return alert('Unable to reverse the transfer because the source balance is invalid.');
     if(!adjustAccountBalance(to, -tx.amount)){
       adjustAccountBalance(from, -tx.amount);
-      return alert('Tidak dapat membalikkan transfer karena saldo tujuan tidak valid.');
+      return alert('Unable to reverse the transfer because the destination balance is invalid.');
     }
     return true;
   }
 
   if(tx.type === 'income' || tx.type === 'expense'){
     const account = DB.accounts.find(a=>a.id == tx.accountId);
-    if(!account) return alert('Akun tidak ditemukan.');
+    if(!account) return alert('Account not found.');
     const delta = tx.type === 'income' ? -tx.amount : tx.amount;
-    if(!adjustAccountBalance(account, delta)) return alert('Tidak dapat membalikkan transaksi karena saldo tidak valid.');
+    if(!adjustAccountBalance(account, delta)) return alert('Unable to reverse the transaction because the balance is invalid.');
     return true;
   }
 
   if(tx.type === 'debt_payment'){
     const account = DB.accounts.find(a=>a.id == tx.accountId);
-    if(!account) return alert('Akun tidak ditemukan.');
+    if(!account) return alert('Account not found.');
     if(tx.creditCardId){
       const card = DB.accounts.find(a=>a.id == tx.creditCardId);
-      if(card && Number(card.usedLimit || 0) < tx.amount) return alert('Tidak dapat membalikkan pembayaran hutang pada kartu kredit karena used limit tidak valid.');
-      if(!adjustAccountBalance(account, tx.amount)) return alert('Tidak dapat membalikkan pembayaran hutang karena saldo tidak valid.');
+      if(card && Number(card.usedLimit || 0) < tx.amount) return alert('Unable to reverse the debt payment because the credit card used credit is invalid.');
+      if(!adjustAccountBalance(account, tx.amount)) return alert('Unable to reverse the debt payment because the balance is invalid.');
       if(!adjustCreditUsed(card, -tx.amount)){
         adjustAccountBalance(account, -tx.amount);
-        return alert('Tidak dapat membalikkan pembayaran hutang pada kartu kredit.');
+        return alert('Unable to reverse the credit card debt payment.');
       }
       return true;
     }
-    if(!adjustAccountBalance(account, tx.amount)) return alert('Tidak dapat membalikkan pembayaran hutang karena saldo tidak valid.');
+    if(!adjustAccountBalance(account, tx.amount)) return alert('Unable to reverse the debt payment because the balance is invalid.');
     return true;
   }
 
   if(tx.type === 'receivable_payment'){
     const account = DB.accounts.find(a=>a.id == tx.accountId);
     const recv = DB.receivables.find(r=>r.id == tx.receivableId);
-    if(!account || !recv) return alert('Akun atau piutang tidak ditemukan.');
-    if(Number(account.balance || 0) < tx.amount) return alert('Tidak dapat membalikkan penerimaan piutang karena saldo account tidak cukup.');
-    if(!adjustAccountBalance(account, -tx.amount)) return alert('Tidak dapat membalikkan penerimaan piutang karena saldo tidak valid.');
+    if(!account || !recv) return alert('Account or receivable not found.');
+    if(Number(account.balance || 0) < tx.amount) return alert('Unable to reverse the receivable collection because the account balance is insufficient.');
+    if(!adjustAccountBalance(account, -tx.amount)) return alert('Unable to reverse the receivable collection because the balance is invalid.');
     recv.remaining = Math.min(recv.total, recv.remaining + tx.amount);
     return true;
   }
@@ -1326,9 +1524,9 @@ function reverseTransaction(tx){
 function deleteAccount(id){
   const account = DB.accounts.find(a=>a.id == id);
   if(!account) return;
-  if(DB.transactions.some(t => t.accountId == id || t.fromId == id || t.toId == id || t.creditCardId == id)) return alert('Account tidak bisa dihapus karena sudah digunakan dalam transaksi.');
-  if(DB.debts.some(d => d.creditCardId == id)) return alert('Account tidak bisa dihapus karena terkait dengan hutang kartu kredit.');
-  if(confirm('Hapus account ini?')){
+  if(DB.transactions.some(t => t.accountId == id || t.fromId == id || t.toId == id || t.creditCardId == id)) return alert('This account cannot be deleted because it has already been used in transactions.');
+  if(DB.debts.some(d => d.creditCardId == id)) return alert('This account cannot be deleted because it is linked to a credit card debt.');
+  if(confirm('Delete this account?')){
     removeById(DB.accounts, id);
     save();
   }
@@ -1337,7 +1535,7 @@ function deleteAccount(id){
 function deleteTransaction(id){
   const tx = DB.transactions.find(t=>t.id == id);
   if(!tx) return;
-  if(confirm('Hapus transaksi ini?')){
+  if(confirm('Delete this transaction?')){
     if(!reverseTransaction(tx)) return;
     removeById(DB.transactions, id);
     save();
@@ -1367,9 +1565,9 @@ function editDebt(id){
   if(!debt) return;
   editingDebtId = id;
   debtType.value = debt.type;
-  debtCategory.value = debt.categoryId || '';
   debtCreditCard.value = debt.creditCardId || '';
   debtBorrower.value = debt.borrower;
+  document.getElementById('debtOwner').value = debt.owner || 'myself';
   debtName.value = debt.name;
   debtTotal.value = debt.total;
   debtTenor.value = debt.tenor;
@@ -1377,6 +1575,7 @@ function editDebt(id){
   saveDebtBtn.textContent = 'Update Debt';
   cancelDebtBtn.classList.remove('hidden');
   syncDebtForm();
+  debtCategory.value = debt.categoryId || '';
   openModal('debtModal');
 }
 
@@ -1410,21 +1609,30 @@ function editSubscription(id){
   subCycle.value = sub.cycle || 'monthly';
   subRenewalDate.value = sub.renewalDate || today();
   subTotal.value = sub.totalCost || '';
-  document.getElementById('subSharingCost').value = sub.subscriptionCategory === 'sharing' ? (sub.sharingCost || '') : '';
   subAccount.value = sub.accountId || '';
   subNote.value = sub.note || '';
   subStatus.value = sub.status || 'active';
-  subSharingCostManuallyEdited = false;
+  subCreationMembers = (sub.members || []).map(m => ({
+    id: m.id,
+    name: m.name,
+    shareAmount: Number(m.shareAmount || 0),
+    paid: Boolean(m.paid || false),
+    paymentDate: m.paymentDate || '',
+    note: m.note || '',
+    amountPaid: Number(m.amountPaid || 0)
+  }));
+  setSubMembersBaseline();
   saveSubBtn.textContent = 'Update Subscription';
   cancelSubBtn.classList.remove('hidden');
   syncSubscriptionCategory();
+  renderSubCreationMembersList();
   openModal('subscriptionModal');
 }
 
 function deleteSubscription(id){
   const sub = DB.subscriptions.find(s=>s.id == id);
   if(!sub) return;
-  if(confirm('Hapus subscription ini?')){
+  if(confirm('Delete this subscription?')){
     removeById(DB.subscriptions, id);
     save();
   }
@@ -1466,6 +1674,8 @@ cancelRecvBtn.onclick = ()=>{ resetReceivableForm(); closeModal('receivableModal
 
 cancelRecvPaymentBtn.onclick = ()=>{ resetReceivablePaymentForm(); closeModal('receivablePaymentModal'); };
 
+cancelSubBtn.onclick = ()=>{ resetSubscriptionForm(); closeModal('subscriptionModal'); };
+
 cancelSubMemberBtn.onclick = ()=>{ resetSubMemberForm(); closeModal('subMemberModal'); };
 
 addSubMemberBtn.onclick = ()=>{
@@ -1473,9 +1683,9 @@ addSubMemberBtn.onclick = ()=>{
   const name = subMemberName.value.trim();
   const shareAmount = amountFrom(subMemberShare);
   const note = subMemberNote.value.trim();
-  if(!subscription) return alert('Pilih subscription.');
-  if(!name) return alert('Isi nama member.');
-  if(!requirePositive(shareAmount, 'Nilai share harus lebih dari 0.')) return;
+  if(!subscription) return alert('Select a subscription.');
+  if(!name) return alert('Enter a member name.');
+  if(!requirePositive(shareAmount, 'Share Amount must be greater than 0.')) return;
   subscription.members.push({id: nextId(), name, shareAmount, paid: false, paymentDate:'', note, amountPaid:0});
   ensureSubscriptionReceivable(subscription);
   subMemberName.value = '';
@@ -1495,8 +1705,8 @@ cancelTxBtn.onclick = ()=>{
 function deleteCategory(id){
   const category = categoryById(id);
   if(!category) return;
-  if(DB.transactions.some(t=>t.categoryId == id || t.category === category.name)) return alert('Kategori yang sudah dipakai transaksi tidak bisa dihapus.');
-  if(confirm('Hapus kategori ini?')){ removeById(DB.categories, id); save(); }
+  if(DB.transactions.some(t=>t.categoryId == id || t.category === category.name)) return alert('A category that is already used by transactions cannot be deleted.');
+  if(confirm('Delete this category?')){ removeById(DB.categories, id); save(); }
 }
 
 function render(){
@@ -1605,7 +1815,7 @@ function render(){
         '</div>';
       }).join('');
     } else {
-      recentTransList.innerHTML = '<div class="transactions-empty">Belum ada transaksi</div>';
+      recentTransList.innerHTML = '<div class="transactions-empty">No transactions yet</div>';
     }
   }
 
@@ -1614,9 +1824,9 @@ function render(){
   const selectedDebtAccount = debtAccount.value;
   const selectedRecvAccount = recvAccount.value;
   const selectedCreditCard = debtCreditCard.value;
-  const cashOptions = '<option value="">Pilih Account</option>' + cashAccounts().map(a=>'<option value="' + a.id + '">' + esc(a.name) + '</option>').join('');
-  const creditOptions = '<option value="">Pilih Credit Card</option>' + cardsCredit.map(a=>'<option value="' + a.id + '">' + esc(a.name) + ' - available ' + rp(creditAvailable(a)) + '</option>').join('');
-  txFrom.innerHTML = cashOptions;
+  const cashOptions = '<option value="">Select Account</option>' + cashAccounts().map(a=>'<option value="' + a.id + '">' + esc(a.name) + '</option>').join('');
+  const creditOptions = '<option value="">Select Credit Card</option>' + cardsCredit.map(a=>'<option value="' + a.id + '">' + esc(a.name) + ' - available ' + rp(creditAvailable(a)) + '</option>').join('');
+  txFrom.innerHTML = getTransactionAccountOptions(txType.value);
   txTo.innerHTML = cashOptions;
   debtAccount.innerHTML = cashOptions;
   recvAccount.innerHTML = cashOptions;
@@ -1631,12 +1841,12 @@ function render(){
   syncDebtForm();
   syncTransactionForm();
 
-  debtSelect.innerHTML = '<option value="">Pilih Hutang</option>' + DB.debts.filter(d=>d.remaining > 0).map(d=>'<option value="' + d.id + '">' + esc(d.name) + '</option>').join('');
-  recvSelect.innerHTML = '<option value="">Pilih Piutang</option>' + DB.receivables.filter(r=>r.remaining > 0).map(r=>'<option value="' + r.id + '">' + esc(r.name) + ' (' + (r.type === 'subscription_sharing' ? 'Subscription' : 'Regular') + ')</option>').join('');
-  recvSubscription.innerHTML = '<option value="">Pilih Subscription</option>' + DB.subscriptions.filter(s=>s.members.length > 0).map(s=>'<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
-  subCategory.innerHTML = '<option value="">Pilih Kategori</option>' + categoriesFor('all').map(c=>'<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
-  subAccount.innerHTML = '<option value="">Pilih Account</option>' + DB.accounts.map(a=>'<option value="' + a.id + '">' + esc(a.name) + ' (' + esc(a.type) + ')</option>').join('');
-  subMemberSubscription.innerHTML = '<option value="">Pilih Subscription</option>' + DB.subscriptions.map(s=>'<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
+  debtSelect.innerHTML = '<option value="">Select Debt</option>' + DB.debts.filter(d=>d.remaining > 0).map(d=>'<option value="' + d.id + '">' + esc(d.name) + '</option>').join('');
+  recvSelect.innerHTML = '<option value="">Select Receivable</option>' + DB.receivables.filter(r=>r.remaining > 0).map(r=>'<option value="' + r.id + '">' + esc(r.name) + ' (' + (r.type === 'subscription_sharing' ? 'Subscription' : 'Regular') + ')</option>').join('');
+  recvSubscription.innerHTML = '<option value="">Select Subscription</option>' + DB.subscriptions.filter(s=>s.members.length > 0).map(s=>'<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
+  subCategory.innerHTML = '<option value="">Select Category</option>' + categoriesFor('all').map(c=>'<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  subAccount.innerHTML = '<option value="">Select Account</option>' + DB.accounts.map(a=>'<option value="' + a.id + '">' + esc(a.name) + ' (' + esc(a.type) + ')</option>').join('');
+  subMemberSubscription.innerHTML = '<option value="">Select Subscription</option>' + DB.subscriptions.map(s=>'<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
 
   accountsList.innerHTML = DB.accounts.length === 0 
     ? '<div class="account-empty"><div class="account-empty-icon">💳</div><p class="account-empty-text">No accounts yet</p><p class="account-empty-hint">Add your first account to start tracking</p></div>'
@@ -1712,7 +1922,11 @@ function render(){
         const status = d.remaining === 0 ? 'paid' : (d.dueDay && new Date().getDate() > d.dueDay) ? 'overdue' : 'on-time';
         const statusLabel = status === 'paid' ? 'Paid Off' : status === 'overdue' ? 'Overdue' : 'On Track';
         const icon = d.type === 'credit_card' ? '💳' : '📋';
-        const tenor = d.tenor ? ` • ${Math.floor(paid / (d.total / d.tenor))}/${d.tenor} paid` : '';
+        let tenor = '';
+        if(d.tenor){
+          const monthlyPayment = calculateMonthlyPayment(d);
+          tenor = ` • ${Math.floor(paid / (d.total / d.tenor))}/${d.tenor} paid${monthlyPayment ? ' • Rp ' + monthlyPayment.toLocaleString() + '/month' : ''}`;
+        }
         const dueInfo = d.dueDay ? ` • Due: ${d.dueDay}th` : '';
         
         return `<div class="debt-card">
@@ -1892,7 +2106,7 @@ function render(){
 function categoryTypeLabel(type){
   if(type === 'income') return 'Income';
   if(type === 'expense') return 'Expense';
-  return 'Semua';
+  return 'All';
 }
 
 function transactionMeta(t){
@@ -1951,6 +2165,8 @@ recvType.onchange = syncReceivableType;
 recvSubscription.onchange = syncRecvSubscription;
 recvSelect.onchange = syncReceivableSelection;
 subSubscriptionCategory.onchange = syncSubscriptionCategory;
+subTotal?.addEventListener('input', handleSubMembersInputChange);
+subMaxMembers?.addEventListener('input', handleSubMembersInputChange);
 searchInput?.addEventListener('input', render);
 txDate.value = today();
 debtDate.value = today();

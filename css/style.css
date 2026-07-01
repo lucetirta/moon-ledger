@@ -415,6 +415,10 @@ body.modal-open{overflow:hidden}
 .subscription-actions button:hover{border-color:var(--accent);color:var(--text);background:rgba(245,215,110,0.08)}
 .subscription-actions button.delete-btn:hover{border-color:var(--danger);color:var(--danger);background:rgba(212,130,106,0.08)}
 
+/* Subscription member editor rows should not inherit full-width global button sizing */
+#subCreationMembersList > div > div{flex:1 1 auto;min-width:0}
+#subCreationMembersList > div > button{width:auto;flex:0 0 auto;align-self:flex-start}
+
 .subscriptions-empty-state{padding:40px 20px;text-align:center}
 .subscriptions-empty-icon{font-size:56px;margin-bottom:12px;opacity:0.4}
 .subscriptions-empty-title{font-size:16px;font-weight:600;color:var(--text);margin:0 0 8px}

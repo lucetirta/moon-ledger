@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -33,7 +33,7 @@
         <p class="eyebrow">Personal finance</p>
         <h2>Moon Ledger</h2>
       </div>
-      <div class="header-badge">Local data · offline ready</div>
+      <div class="header-badge">Local data · offline-ready</div>
     </header>
 
     <div class="page-content">
@@ -121,14 +121,14 @@
               <option>Credit Card</option>
             </select>
             <div id="cashAccountArea">
-              <label>Initial Balance</label>
+              <label>Opening Balance</label>
               <input id="accBalance" type="number" placeholder="Initial Balance">
             </div>
             <div id="creditAccountArea" class="hidden">
               <label>Credit Limit</label>
               <input id="accLimit" type="number" placeholder="Credit Limit">
-              <label>Used Limit</label>
-              <input id="accUsedLimit" type="number" placeholder="Used Limit (optional)">
+              <label>Used Credit</label>
+              <input id="accUsedLimit" type="number" placeholder="Used Credit (optional)">
             </div>
             <div class="actions"><button id="saveAccountBtn" class="btn btn-primary">Save Account</button><button id="cancelAccountBtn" class="btn btn-secondary hidden">Cancel</button></div>
           </div>
@@ -186,14 +186,12 @@
             </div>
             <label>Amount</label>
             <input id="txAmount" type="number" placeholder="Amount">
-            <label>From</label>
+            <label id="txFromLabel">From</label>
             <select id="txFrom"></select>
             <div id="transferArea" class="hidden">
-              <label>To</label>
+              <label id="txToLabel">To</label>
               <select id="txTo"></select>
             </div>
-            <label>Date</label>
-            <input id="txDate" type="date">
             <label>Note</label>
             <input id="txNote" placeholder="Note">
             <div class="actions"><button id="saveTxBtn" class="btn btn-primary">Save Transaction</button><button id="cancelTxBtn" class="btn btn-secondary hidden">Cancel</button></div>
@@ -206,7 +204,7 @@
           <div>
             <p class="eyebrow">💳 Liability Management</p>
             <h2>Debts</h2>
-            <p class="section-note">Monitor outstanding debt and credit payments.</p>
+            <p class="section-note">Monitor outstanding debts and credit payments.</p>
           </div>
           <div class="header-actions">
             <button id="openDebtPaymentModalBtn" class="btn btn-secondary">Pay Debt</button>
@@ -236,6 +234,11 @@
               <select id="debtCreditCard"></select>
               <label>Borrower</label>
               <input id="debtBorrower" placeholder="Borrower name (optional)">
+              <label>Owner</label>
+              <select id="debtOwner">
+                <option value="myself">Myself</option>
+                <option value="another">Another Person</option>
+              </select>
             </div>
             <label>Category</label>
             <select id="debtCategory"></select>
@@ -244,7 +247,7 @@
             <label>Total Debt</label>
             <input id="debtTotal" type="number" placeholder="Total Debt">
             <label>Tenor</label>
-            <input id="debtTenor" type="number" placeholder="Tenor / installments (optional)">
+            <input id="debtTenor" type="number" placeholder="Installments (optional)">
             <label>Due Day</label>
             <input id="debtDueDay" type="number" placeholder="Monthly due day (optional)">
             <div class="actions"><button id="saveDebtBtn" class="btn btn-primary">Save Debt</button><button id="cancelDebtBtn" class="btn btn-secondary hidden">Cancel</button></div>
@@ -272,7 +275,7 @@
           <header class="modal-header">
             <div>
               <h3>New Receivable</h3>
-              <p class="meta">Create a new receivable or shared subscription receivable.</p>
+              <p class="meta">Create a new receivable or shared-subscription receivable.</p>
             </div>
             <button class="modal-close" data-close="receivableModal">×</button>
           </header>
@@ -280,7 +283,7 @@
             <label>Receivable Type</label>
             <select id="recvType">
               <option value="regular">Regular Receivable</option>
-              <option value="subscription_sharing">Sharing Subscription</option>
+              <option value="subscription_sharing">Shared Subscription</option>
             </select>
             <div id="recvSubscriptionArea" class="hidden">
               <label>Subscription</label>
@@ -357,7 +360,7 @@
           <header class="modal-header">
             <div>
               <h3>Add Subscription Member</h3>
-              <p class="meta">Create a new member share for a subscription.</p>
+              <p class="meta">Create a new member allocation for a subscription.</p>
             </div>
             <button class="modal-close" data-close="subMemberModal">×</button>
           </header>
@@ -380,7 +383,7 @@
           <div>
             <p class="eyebrow">🎁 Recurring Services</p>
             <h2>Subscriptions</h2>
-            <p class="section-note">Manage recurring services and member shares.</p>
+            <p class="section-note">Manage recurring services and shared member allocations.</p>
           </div>
         </div>
         <div id="subscriptionsList" class="subscriptions-list"></div>
@@ -404,11 +407,11 @@
             <label>Subscription Category</label>
             <select id="subSubscriptionCategory">
               <option value="personal">Personal</option>
-              <option value="sharing">Sharing</option>
+              <option value="sharing">Shared</option>
             </select>
             <div id="subMaxMembersArea" class="hidden">
               <label>Maximum Number of Members</label>
-              <input id="subMaxMembers" type="number" min="1" placeholder="Maximum members">
+              <input id="subMaxMembers" type="number" min="1" placeholder="Maximum number of members">
             </div>
             <label>Billing Cycle</label>
             <select id="subCycle">
@@ -419,11 +422,6 @@
             <input id="subRenewalDate" type="date">
             <label>Total Cost</label>
             <input id="subTotal" type="number" placeholder="Total Cost">
-            <div id="subSharingCostArea" class="hidden">
-              <label>Sharing Cost Per Person</label>
-              <input id="subSharingCost" type="number" placeholder="Auto-calculated" readonly style="background:var(--bg);cursor:default">
-              <small style="display:block;margin-top:4px;color:var(--muted-fg);font-size:11px">Editable - will auto-calculate when you change Total Cost or Max Members</small>
-            </div>
             <label>Payment Account</label>
             <select id="subAccount"></select>
             <label>Note</label>
@@ -434,10 +432,18 @@
               <option value="paused">Paused</option>
               <option value="canceled">Canceled</option>
             </select>
+
+            <div id="subMembersLauncherArea" class="hidden">
+              <button id="subShowMemberFormBtn" class="btn btn-secondary" style="margin-top:4px">+ Add Member</button>
+            </div>
             
             <div id="subCreationMembersArea" class="hidden">
               <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
               <h4 style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--text)">Members</h4>
+              <div id="subMembersOutOfSync" class="hidden" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;margin-bottom:12px;background:rgba(245,215,110,0.12);border:1px solid rgba(245,215,110,0.24);border-radius:8px;font-size:12px;color:var(--text)">
+                <span>Member shares are out of sync with Total Cost or Maximum Members.</span>
+                <button id="subRecalculateMembersBtn" class="btn btn-secondary" style="width:auto;padding:6px 10px;font-size:12px">Recalculate Member Shares</button>
+              </div>
               <div style="display:grid;gap:8px;margin-bottom:12px">
                 <div>
                   <label style="display:block;margin-bottom:4px;font-size:12px;color:var(--muted-fg)">Member Name</label>
