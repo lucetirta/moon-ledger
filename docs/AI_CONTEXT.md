@@ -126,6 +126,7 @@ The most important current constraints are:
 - existing user data should remain backward compatible whenever practical
 - current text and currency handling are not yet localization-ready
 - the architecture is intentionally simple and should not be rewritten without strong justification
+- global UI styles can have unintended effects on local layouts if they are too broad
 
 These constraints should shape how changes are introduced.
 
@@ -160,6 +161,8 @@ Use the documentation hierarchy intentionally:
 - UX Principles: [docs/ux-principles.md](docs/ux-principles.md)
 - UI Design System: [docs/ui-design-system.md](docs/ui-design-system.md)
 - Coding Guidance: [docs/coding-guidelines.md](docs/coding-guidelines.md)
+- Regression Checklist: [docs/REGRESSION_TESTS.md](docs/REGRESSION_TESTS.md)
+- Known Pitfalls: [docs/KNOWN_PITFALLS.md](docs/KNOWN_PITFALLS.md)
 - Product Overview: [docs/project-overview.md](docs/project-overview.md)
 - Product Direction: [docs/PROJECT_PRINCIPLES.md](docs/PROJECT_PRINCIPLES.md)
 - Detailed Product Principles: [docs/product-principles.md](docs/product-principles.md)

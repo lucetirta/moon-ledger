@@ -118,6 +118,10 @@ Moon Ledger should evolve through disciplined extension rather than impulsive re
 - Keep business logic separated from presentation concerns as much as practical.
 - Preserve LocalStorage compatibility whenever possible.
 - Maintain backward compatibility with existing user data whenever possible.
+- Visual regressions should be solved at the responsible layer.
+- Do not solve layout problems by modifying business logic.
+- Do not solve rendering problems by changing financial rules.
+- Always identify the responsible layer before implementing a fix.
 
 Future improvement is encouraged, but change should be coherent. A partial architectural shift is often worse than a simple, consistent system.
 
@@ -174,3 +178,5 @@ If the answer is no, the decision should be reconsidered before implementation.
 Moon Ledger should evolve carefully.
 
 The product earns trust by being understandable, stable, and financially consistent. Every future design and engineering decision should protect that trust.
+
+Automation should assist the user, never override the user's intent. Users should retain final control over important values and decisions.

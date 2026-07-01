@@ -33,6 +33,7 @@ Recent completed milestones:
 - architecture, business rules, finance engine, UX, design system, coding, product, and roadmap documents established
 - product direction clarified as international-first, localized in the future, and multi-currency-ready in the long term
 - global FAB already established as the primary creation entry point
+- subscription member edit regression debugged to root cause at the CSS layout layer
 
 ## Current Known Issues
 Keep this section short and current:
@@ -52,6 +53,37 @@ Important current product and engineering decisions:
 - the user's own finances remain the center of the product
 - financial logic integrity has priority over UI convenience
 - current architecture should be extended carefully rather than rewritten impulsively
+- visual regressions must be fixed at the responsible layer after runtime verification
+
+## Subscription Debugging Summary
+Problem:
+
+- existing subscription members appeared to lose editable fields in the visible UI
+
+Initial assumptions investigated:
+
+- rendering issue
+- duplicate renderer
+- event handling issue
+- state issue
+
+Actual root cause:
+
+- a global button width rule compressed the editable flex column to approximately `18px`
+- the inputs were correctly rendered in the DOM
+- business logic was never broken
+
+Lesson learned:
+
+- runtime inspection was more valuable than reasoning from source code alone once source and visible behavior diverged
+
+Debugging sequence that proved effective:
+
+- Source
+- Runtime DOM
+- Computed Layout
+- Root Cause
+- Minimal Fix
 
 ## Next Priorities
 Prioritized next tasks:
@@ -88,6 +120,7 @@ Guidance for the next development session:
 - Use the smallest change that solves the real problem.
 - Run validation and regression checks after every implementation.
 - Update this file after any meaningful development session.
+- If the visible UI contradicts the source code, verify runtime DOM and computed layout before changing state or business logic.
 
 ## Maintenance Rule
 This file is a living development journal.

@@ -46,6 +46,33 @@ For now, future work should respect that split instead of introducing partially 
 - Navigation should continue to work on both desktop and mobile layouts.
 - New UI should be written with eventual localization in mind rather than assuming fixed Indonesian labels.
 
+## Layout Safety
+- Global component styles should never assume they work correctly in every layout.
+- Avoid generic element rules that affect every `button`, `input`, `select`, `textarea`, or card unless the behavior is truly universal.
+- Prefer reusable component classes instead of broad global element styling.
+
+Example:
+
+- Avoid a universal rule such as `button { width: 100%; }` unless full-width behavior is truly correct everywhere.
+- Prefer intent-based classes such as `.btn-block` when full width is needed.
+- Inline action buttons such as Remove, Edit, and Delete should usually size themselves naturally.
+
+Flexbox and Grid layouts often require component-specific sizing rules. Layout bugs should be solved at the layout layer rather than by changing unrelated rendering or business logic.
+
+## Runtime Debugging Workflow
+When visible UI behavior does not match source code, debug in this order:
+
+1. Source code
+2. Runtime DOM
+3. Computed layout
+4. CSS
+5. JavaScript events
+6. Business logic
+
+Never modify business logic until runtime behavior has been verified.
+
+Source code should never be assumed to represent actual runtime behavior. Runtime inspection is the deciding layer when visual output and source expectations diverge.
+
 ## Style Conventions Observed In Code
 - The project currently uses plain functions over classes.
 - Many DOM references rely on global element IDs becoming window properties.
@@ -70,6 +97,7 @@ When adding a feature:
 - Do not add new financial flows without defining reversal behavior.
 - Do not add UI affordances that contradict domain validation rules.
 - Do not introduce new user-facing strings or currency behavior in ways that make future localization or multi-currency support harder.
+- Do not solve layout problems by modifying business logic, financial rules, or persistence unless runtime evidence proves those layers are responsible.
 
 ## Assumptions
 - The codebase currently values directness and debuggability over abstraction.
