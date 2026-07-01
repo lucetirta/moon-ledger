@@ -64,6 +64,48 @@ This helper is the main guardrail against accidental negative cash positions.
 
 This models card utilization as bounded obligation capacity.
 
+## Credit Card Reservation Model
+Credit card installment debts use a reservation model rather than a direct balance model.
+
+### Core concepts
+#### Credit Limit
+- The maximum borrowing capacity of the credit card.
+- This value does not change unless the user explicitly edits the account itself.
+
+#### Used Limit
+- The amount of credit currently reserved by outstanding credit card installment debts.
+- This is the finance engine's primary mutable value for card-backed debt usage.
+
+#### Available Credit
+- Derived as `creditLimit - usedLimit`.
+- This is not an independently stored financial value.
+- It should always be treated as a calculated result of the current reservation state.
+
+### Reservation lifecycle
+#### 1. Create credit card installment debt
+- A new credit card installment debt reserves credit immediately.
+- `usedLimit` increases.
+- `availableCredit` decreases.
+
+#### 2. Pay debt
+- Paying the debt releases reserved credit.
+- `usedLimit` decreases.
+- `availableCredit` increases.
+
+#### 3. Debt fully paid
+- Once the debt reaches zero remaining balance, the full reservation has been released.
+- `usedLimit` returns to zero for that debt's reserved amount.
+- `availableCredit` returns to the full `creditLimit` if no other credit-backed obligations remain.
+
+### Validation rule
+- A new credit card installment debt must not be created if it would exceed available credit.
+- Reservation must fail before the debt is created.
+
+### Engineering principle
+- The finance engine should mutate `usedLimit`, not `availableCredit` directly.
+- `availableCredit` should always be derived from `creditLimit - usedLimit`.
+- Reservation and release should flow through centralized helper functions such as `adjustCreditUsed()` whenever possible so that credit behavior remains consistent across the finance engine.
+
 ## Transaction Application Model
 ### Income
 - Adds amount to a liquid account.
